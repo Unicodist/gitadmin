@@ -161,28 +161,26 @@
     color: var(--text-secondary);
   }
 
-  // The name and the address share the row, the address is shortened first
+  // The address goes under the name when they do not fit side by side, each one is shortened
+  // when it does not fit alone
   .commit-author {
     grid-column: 2 / -1;
     display: flex;
+    flex-wrap: wrap;
     align-items: baseline;
-    gap: 6px;
+    column-gap: 6px;
     min-width: 0;
 
-    .commit-author-name {
-      flex: none;
+    .commit-author-name,
+    a {
       max-width: 100%;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      font-weight: var(--font-weight-medium);
     }
 
-    a {
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+    .commit-author-name {
+      font-weight: var(--font-weight-medium);
     }
   }
 
