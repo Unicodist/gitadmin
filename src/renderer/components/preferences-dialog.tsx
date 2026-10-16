@@ -1,17 +1,34 @@
-import * as Path from 'path';
-import * as fs from 'fs';
 import * as React from 'react';
 import { makeModal } from './make-modal';
 import { TextPatchViewerOptions } from './text-patch-viewer';
 import { Settings, Field } from '../../shared/settings';
+import { DEFAULT_THEME, listThemes, SYSTEM_THEME } from '../../shared/theme-manager';
 import { CancellablePromise, makeCancellable } from '../helpers/make-cancellable';
+import { getThemeOptions } from '../helpers/dialogs';
+import { IconName } from '../helpers/icons';
+import { Icon } from './icon';
 
 enum Section {
   Profile,
   Authentication,
-  UIPreferences,
-  EditorPreferences
+  Appearance,
+  Editor
 }
+
+interface SectionTab {
+  section: Section;
+  // Suffix of the ids of the tab and of its panel
+  id: string;
+  label: string;
+  icon: IconName;
+}
+
+const SECTION_TABS: SectionTab[] = [
+  { section: Section.Profile, id: 'profile', label: 'Profile', icon: 'user' },
+  { section: Section.Authentication, id: 'authentication', label: 'Authentication', icon: 'key-round' },
+  { section: Section.Appearance, id: 'appearance', label: 'Appearance', icon: 'palette' },
+  { section: Section.Editor, id: 'editor', label: 'Editor', icon: 'code' }
+];
 
 export class PreferencesProps {
   onClose: () => void;
@@ -39,10 +56,11 @@ class Preferences extends React.PureComponent<PreferencesProps, PreferencesState
       themes: [],
       name: settings[Field.Name] || '',
       email: settings[Field.Email] || '',
-      theme: settings[Field.Theme] || 'light',
+      theme: settings[Field.Theme] || DEFAULT_THEME,
       fontSize: settings[Field.FontSize] || 14
     };
     // Maybe we should refactor that when there will be more fields
+    this.handleTabKeyDown = this.handleTabKeyDown.bind(this);
     this.handleNameChange = this.handleNameChange.bind(this);
     this.handleEmailChange = this.handleEmailChange.bind(this);
     this.handleThemeChange = this.handleThemeChange.bind(this);
@@ -68,6 +86,29 @@ class Preferences extends React.PureComponent<PreferencesProps, PreferencesState
     });
   }
 
+  // The arrow keys go through the tabs and select them, Tab goes to the content of the selected one
+  handleTabKeyDown(event: React.KeyboardEvent<HTMLElement>) {
+    const i = SECTION_TABS.findIndex((tab) => tab.section === this.state.section);
+    let next: number;
+    if (event.key === 'ArrowDown') {
+      next = (i + 1) % SECTION_TABS.length;
+    } else if (event.key === 'ArrowUp') {
+      next = (i - 1 + SECTION_TABS.length) % SECTION_TABS.length;
+    } else if (event.key === 'Home') {
+      next = 0;
+    } else if (event.key === 'End') {
+      next = SECTION_TABS.length - 1;
+    } else {
+      return;
+    }
+    event.preventDefault();
+    this.setState({section: SECTION_TABS[next].section});
+    const tab = event.currentTarget.querySelector<HTMLElement>(`#preferences-tab-${SECTION_TABS[next].id}`);
+    if (tab) {
+      tab.focus();
+    }
+  }
+
   handleNameChange(event: React.ChangeEvent<HTMLInputElement>) {
     this.setState({name: event.target.value});
   }
@@ -77,9 +118,9 @@ class Preferences extends React.PureComponent<PreferencesProps, PreferencesState
   }
 
   handleThemeChange(event: React.ChangeEvent<HTMLSelectElement>) {
-    const theme = event.target.selectedOptions[0].text;
+    const theme = event.target.value;
     this.setState({theme: theme});
-    this.props.onThemeUpdate(event.target.selectedOptions[0].text);
+    this.props.onThemeUpdate(theme);
   }
 
   handleFontSizeChange(event: React.ChangeEvent<HTMLInputElement>) {
@@ -97,18 +138,7 @@ class Preferences extends React.PureComponent<PreferencesProps, PreferencesState
   }
 
   async loadThemes() {
-    const path = Path.join(__dirname, '../../../assets/themes/');
-    this.themesPromise = makeCancellable(new Promise<string[]>((resolve, reject) => {
-      fs.readdir(path, {withFileTypes: true}, (error, files) => {
-        if (files) {
-          const themes = files.filter((file) => file.name.endsWith('.json'))
-            .map((file) => file.name.substr(0, file.name.length - 5));
-          resolve(themes);
-        } else {
-          reject(error);
-        }
-      });
-    }));
+    this.themesPromise = makeCancellable(listThemes());
     try {
       this.setState({
         themes: await this.themesPromise.promise
@@ -124,86 +154,116 @@ class Preferences extends React.PureComponent<PreferencesProps, PreferencesState
     Settings.set(Field.FontSize, this.state.fontSize);
   }
 
+  renderTab(tab: SectionTab) {
+    const selected = tab.section === this.state.section;
+    // Only the selected tab is in the tab sequence, the arrow keys reach the others
+    return (
+      <button type='button'
+        role='tab'
+        id={`preferences-tab-${tab.id}`}
+        aria-controls={`preferences-panel-${tab.id}`}
+        aria-selected={selected}
+        tabIndex={selected ? 0 : -1}
+        onClick={() => this.handleTabClick(tab.section)}
+        key={tab.id}>
+        <Icon name={tab.icon} />
+        <span>{tab.label}</span>
+      </button>
+    );
+  }
+
+  renderPanel(section: Section, content: React.ReactNode) {
+    const tab = SECTION_TABS.find((tab) => tab.section === section)!;
+    return (
+      <section role='tabpanel'
+        id={`preferences-panel-${tab.id}`}
+        aria-labelledby={`preferences-tab-${tab.id}`}
+        hidden={section !== this.state.section}>
+        <h3>{tab.label}</h3>
+        {content}
+      </section>
+    );
+  }
+
   render() {
-    const themeOptions = this.state.themes.map((theme) => (
-      <option value={theme} key={theme}>
-        {theme}
+    const themeOptions = getThemeOptions(this.state.themes, this.state.theme).map((option) => (
+      <option value={option.value} key={option.value}>
+        {option.label}
       </option>
     ));
+    const systemTheme = this.state.theme === SYSTEM_THEME;
     return (
       <div className='preferences'>
-        <nav>
-          <ul>
-            <li className={this.state.section === Section.Profile ? 'selected' : undefined}
-              onClick={() => this.handleTabClick(Section.Profile)}>
-              Profile
-            </li>
-            <li className={this.state.section === Section.Authentication ? 'selected' : undefined}
-              onClick={() => this.handleTabClick(Section.Authentication)}>
-              Authentication
-            </li>
-            <li className={this.state.section === Section.UIPreferences ? 'selected' : undefined}
-              onClick={() => this.handleTabClick(Section.UIPreferences)}>
-              UI Preferences
-            </li>
-            <li className={this.state.section === Section.EditorPreferences ? 'selected' : undefined}
-              onClick={() => this.handleTabClick(Section.EditorPreferences)}>
-              Editor Preferences
-            </li>
-          </ul>
+        <nav role='tablist' aria-label='Sections' aria-orientation='vertical' onKeyDown={this.handleTabKeyDown}>
+          {SECTION_TABS.map((tab) => this.renderTab(tab))}
         </nav>
-        <main>
-          <section className={this.state.section === Section.Profile ? 'shown' : undefined}>
-            <h1>Profile</h1>
+        <div className='preferences-content'>
+          {this.renderPanel(Section.Profile, <>
+            <p className='preferences-description'>
+              The author of your commits. When a field is empty, the commits use the identity of your Git configuration.
+            </p>
             <form onSubmit={this.handleSubmit}>
-              <div>
-                <label htmlFor="name">Name:</label>
-                <input type="text"
-                  id="name"
-                  name="profile-name"
+              <div className='field'>
+                <label htmlFor='preferences-name'>Name</label>
+                <input type='text'
+                  id='preferences-name'
+                  name='profile-name'
                   autoFocus={true}
+                  spellCheck={false}
                   value={this.state.name}
                   onChange={this.handleNameChange} />
               </div>
-              <div>
-                <label htmlFor="path">Email:</label>
-                <input type="text"
-                  id="email"
-                  name="profile-email"
+              <div className='field'>
+                <label htmlFor='preferences-email'>Email</label>
+                <input type='text'
+                  id='preferences-email'
+                  name='profile-email'
+                  spellCheck={false}
                   value={this.state.email}
                   onChange={this.handleEmailChange} />
               </div>
             </form>
-          </section>
-          <section className={this.state.section === Section.Authentication ? 'shown' : undefined}>
-            <h1>Authentication</h1>
-            <p>The authentication uses your local SSH agent.</p>
-          </section>
-          <section className={this.state.section === Section.UIPreferences ? 'shown' : undefined}>
-            <h1>UI Preferences</h1>
+          </>)}
+          {this.renderPanel(Section.Authentication, <>
+            <div className='preferences-note'>
+              <Icon name='info' />
+              <p>The authentication uses your local SSH agent.</p>
+            </div>
+          </>)}
+          {this.renderPanel(Section.Appearance, <>
             <form onSubmit={this.handleSubmit}>
-              <div>
-                <label htmlFor="theme">Theme:</label>
-                <select id="theme" value={this.state.theme} onChange={this.handleThemeChange}>
-                  {themeOptions}
-                </select>
+              <div className='field'>
+                <label htmlFor='preferences-theme'>Theme</label>
+                <div className='select'>
+                  <select id='preferences-theme'
+                    value={this.state.theme}
+                    aria-describedby={systemTheme ? 'preferences-theme-hint' : undefined}
+                    onChange={this.handleThemeChange}>
+                    {themeOptions}
+                  </select>
+                  <Icon name='chevron-down' />
+                </div>
+                {systemTheme ?
+                  <p className='field-hint' id='preferences-theme-hint'>Switches between light and dark with your system</p> :
+                  null}
               </div>
             </form>
-          </section>
-          <section className={this.state.section === Section.EditorPreferences ? 'shown' : undefined}>
-            <h1>Editor Preferences</h1>
+          </>)}
+          {this.renderPanel(Section.Editor, <>
             <form onSubmit={this.handleSubmit}>
-              <div>
-                <label htmlFor="font-size">Font size:</label>
-                <input type="number"
-                  id="font-size"
-                  name="font-size"
+              <div className='field'>
+                <label htmlFor='preferences-font-size'>Font size</label>
+                <input type='number'
+                  id='preferences-font-size'
+                  name='font-size'
+                  aria-describedby='preferences-font-size-hint'
                   value={this.state.fontSize}
                   onChange={this.handleFontSizeChange}/>
+                <p className='field-hint' id='preferences-font-size-hint'>Size of the text of the diffs, in pixels</p>
               </div>
             </form>
-          </section>
-        </main>
+          </>)}
+        </div>
       </div>
     );
   }

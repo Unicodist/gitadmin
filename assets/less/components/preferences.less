@@ -1,59 +1,139 @@
-// TODO(restyle): legacy styles moved here unchanged, they still use the old theme variables
-
 /* Preferences */
 
+@preferences-nav-width: 184px;
+@preferences-tab-height: 28px;
+
+// Inside the dialog: the sections on the left, the selected one on the right
 div.preferences {
-  width: 600px;
-  height: 400px;
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
+  width: 680px;
+  max-width: 100%;
+  // With the header of the dialog, the dialog is about 440px high
+  height: 388px;
+
+  /* Sections */
 
   nav {
-    width: 200px;
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: @preferences-nav-width;
+    padding: var(--space-3) var(--space-2);
+    border-right: 1px solid var(--border-subtle);
+    background-color: var(--surface-0);
+    overflow-y: auto;
 
-    ul {
-      list-style: none;
-      margin: 16px 0px;
-      padding: 0px;
+    button {
+      flex: none;
+      justify-content: flex-start;
+      gap: var(--space-2);
+      width: 100%;
+      height: @preferences-tab-height;
+      // The icons line up with the title of the dialog
+      padding: 0 var(--space-3);
+      border: none;
+      border-radius: var(--radius-sm);
+      background-color: transparent;
+      color: var(--text-secondary);
+      font-weight: normal;
+      text-align: left;
 
-      li {
-        padding: 5px 16px;
+      &:hover {
+        background-color: var(--hover);
+        color: var(--text-primary);
+      }
+
+      &:active {
+        background-color: var(--active);
+      }
+
+      // Inside the row, like the rows of the lists
+      &:focus-visible {
+        outline-offset: -2px;
+      }
+
+      span {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        line-height: var(--line-height);
+      }
+
+      // The selected section, marked by its background, its weight and the color of its icon
+      &[aria-selected="true"] {
+        background-color: var(--selected);
+        color: var(--text-primary);
+        font-weight: var(--font-weight-medium);
 
         &:hover {
-          background-color: var(--hover-color);
+          background-color: var(--selected-hover);
         }
 
-        &.selected {
-          background-color: var(--selected-color);
+        svg.icon {
+          color: var(--accent-text);
         }
       }
     }
   }
 
-  main {
-    flex-grow: 1;
+  /* Content */
+
+  div.preferences-content {
+    flex: 1;
+    min-width: 0;
+    padding: var(--space-5) var(--space-6);
+    overflow-y: auto;
   }
 
   section {
-    display: none;
-    padding: 16px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
 
-    &.shown {
-      display: block;
+    &[hidden] {
+      display: none;
     }
+  }
 
-    h1 {
-      margin: 0px;
-      border-bottom: 1px solid var(--border-color);
-      margin-bottom: 16px;
-    }
+  // Under the title of its section
+  p.preferences-description {
+    margin-top: calc(-1 * var(--space-2));
+    color: var(--text-secondary);
+  }
 
-    div {
-      margin: 4px 0px;
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+  }
 
-      label {
-        margin-right: 4px;
-      }
+  .select {
+    align-self: flex-start;
+    width: 240px;
+  }
+
+  input[type="number"] {
+    align-self: flex-start;
+    width: 96px;
+  }
+
+  div.preferences-note {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background-color: var(--surface-0);
+    color: var(--text-secondary);
+
+    // Centered on the first line of the text
+    svg.icon {
+      margin-top: 1px;
+      color: var(--accent-text);
     }
   }
 }
-
