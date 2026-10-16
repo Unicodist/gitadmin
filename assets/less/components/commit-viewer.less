@@ -228,7 +228,7 @@
 .index-viewer {
   user-select: none;
 
-  // A merge in progress, the commit button finishes it
+  // A merge in progress is a state to leave, by committing or aborting it, the badge is solid
   .merge-state {
     flex: none;
     display: inline-flex;
@@ -237,8 +237,8 @@
     height: 20px;
     padding: 0 var(--space-2);
     border-radius: var(--radius-pill);
-    background-color: var(--warning-subtle);
-    color: var(--warning);
+    background-color: var(--warning-emphasis);
+    color: var(--text-on-emphasis);
     font-size: var(--font-size-xs);
     font-weight: var(--font-weight-semibold);
   }
