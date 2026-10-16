@@ -40,12 +40,13 @@ export class ImagePatchViewer extends React.PureComponent<ImagePatchViewerProps,
     this.handleNewImageLoad = this.handleNewImageLoad.bind(this);
   }
 
+  // Only the image of a new buffer is loaded again and gets its size again
   componentDidUpdate(prevProps: ImagePatchViewerProps) {
-    if (this.props.oldBuffer !== prevProps.oldBuffer || this.props.newBuffer !== prevProps.newBuffer) {
-      this.setState({
-        oldSize: null,
-        newSize: null
-      });
+    if (this.props.oldBuffer !== prevProps.oldBuffer) {
+      this.setState({ oldSize: null });
+    }
+    if (this.props.newBuffer !== prevProps.newBuffer) {
+      this.setState({ newSize: null });
     }
   }
 
