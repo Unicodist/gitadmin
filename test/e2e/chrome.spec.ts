@@ -99,3 +99,19 @@ test('keeps the line under the mouse while dragging the splitter', async () => {
   expect((await splitter.boundingBox())!.x).toBe(box.x - 40);
   expect(await getWidth(panel)).toBe(width + 40);
 });
+
+test('names each splitter after what it resizes', async () => {
+  const panels: [string, string][] = [
+    ['Resize the references panel', '.reference-explorer'],
+    ['Resize the commit graph', '.commit-graph']
+  ];
+  for (const [name, selector] of panels) {
+    const splitter = page.getByRole('separator', { name, exact: true });
+    const panel = page.locator(selector);
+    const width = await getWidth(panel);
+    await splitter.focus();
+    await page.keyboard.press('ArrowRight');
+    await expect.poll(() => getWidth(panel)).toBe(width + 16);
+    await expect(splitter).toBeFocused();
+  }
+});

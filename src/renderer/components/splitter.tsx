@@ -5,8 +5,8 @@ export const SPLITTER_KEYBOARD_STEP = 16;
 
 export interface SplitterProps {
   onDrag: (offset: number) => void;
-  // Accessible name, for instance what the splitter resizes
-  label?: string;
+  // Accessible name, what the splitter resizes
+  label: string;
 }
 
 export interface SplitterState {
@@ -120,7 +120,7 @@ export class Splitter extends React.PureComponent<SplitterProps, SplitterState> 
       <div className={classNames.join(' ')}
         role='separator'
         aria-orientation='vertical'
-        aria-label={this.props.label || 'Resize the panels'}
+        aria-label={this.props.label}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={this.state.position !== null ? this.state.position : undefined}
