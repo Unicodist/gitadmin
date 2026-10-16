@@ -1,4 +1,3 @@
-import { clipboard } from 'electron';
 import * as React from 'react';
 import { PatchList } from './patch-list';
 import { Icon } from './icon';
@@ -90,9 +89,10 @@ export class CommitViewer extends React.PureComponent<CommitViewerProps, CommitV
     function handleHover(event: React.SyntheticEvent<HTMLButtonElement>) {
       setTooltipText(event.currentTarget, 'Copy');
     }
+    // The clipboard module of Electron is no longer available in the renderer
     function handleClick(event: React.MouseEvent<HTMLButtonElement>) {
-      clipboard.writeText(sha);
-      setTooltipText(event.currentTarget, 'Copied');
+      const button = event.currentTarget;
+      navigator.clipboard.writeText(sha).then(() => setTooltipText(button, 'Copied'));
     }
     const shortSha = shortenSha(sha);
     return (
