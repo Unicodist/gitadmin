@@ -106,7 +106,7 @@ export class PatchViewer extends React.PureComponent<PatchViewerProps, PatchView
   handleKeyDown(event: KeyboardEvent) {
     // Escape is left to what handled it first, like the find widget of the editor, and to the dialogs
     if (event.key !== 'Escape' || event.defaultPrevented ||
-      (event.target instanceof Element && event.target.closest('[aria-modal="true"], .modal-container'))) {
+      (event.target instanceof Element && event.target.closest('[aria-modal="true"]'))) {
       return;
     }
     this.props.onClose();
