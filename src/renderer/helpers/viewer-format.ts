@@ -12,9 +12,10 @@ export function formatFullDate(date: Date, locale?: string, timeZone?: string) {
 }
 
 // Splits the header of a hunk into its range and the context that git writes after it,
-// for instance "@@ -12,7 +12,8 @@ function update() {" into "@@ -12,7 +12,8 @@" and "function update() {"
+// for instance "@@ -12,7 +12,8 @@ function update() {" into "@@ -12,7 +12,8 @@" and "function update() {".
+// The context of a file with CRLF line endings ends with a carriage return.
 export function splitHunkHeader(header: string): [string, string] {
-  const match = /^(@@ [^@]+ @@)(.*)$/.exec(header);
+  const match = /^(@@ [^@]+ @@)(.*)$/s.exec(header);
   return match ? [match[1], match[2].trim()] : [header.trim(), ''];
 }
 
@@ -27,7 +28,8 @@ export function formatFileSize(size: number) {
   }
   let value = size / 1024;
   let i = 0;
-  while (value >= 1024 && i < SIZE_UNITS.length - 1) {
+  // A size that would be rounded to 1024 of a unit is given in the next unit
+  while (Math.round(value) >= 1024 && i < SIZE_UNITS.length - 1) {
     value /= 1024;
     i += 1;
   }
