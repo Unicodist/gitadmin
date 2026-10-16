@@ -22,6 +22,8 @@ function restoreGitLinks(buildPath) {
 
 module.exports = {
   packagerConfig: {
+    // Lowercase so it matches the default binary name the deb and rpm makers look for
+    executableName: 'gitadmin',
     asar: {
       // dugite runs the git distribution it ships, which cannot be executed from the archive
       unpack: '**/node_modules/dugite/git/**'
@@ -54,7 +56,7 @@ module.exports = {
     {
       name: '@electron-forge/maker-squirrel',
       config: {
-        name: 'gitamine'
+        name: 'gitadmin'
       }
     },
     {

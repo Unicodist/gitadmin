@@ -2,9 +2,9 @@ import * as fs from 'fs';
 import * as Path from 'path';
 import { app, ipcRenderer } from 'electron';
 
-const NAMESPACE = 'gitamine';
+const NAMESPACE = 'gitadmin';
 
-// Same file as electron-settings used, so existing preferences are kept
+// Same file name and format as electron-settings
 const SETTINGS_FILE = 'Settings';
 
 export enum Field {

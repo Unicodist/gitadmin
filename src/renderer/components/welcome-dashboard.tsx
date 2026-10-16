@@ -45,7 +45,7 @@ export class WelcomeDashboard extends React.PureComponent<WelcomeDashboardProps,
       });
     return (
       <div className='welcome-dashboard'>
-        <h1>Welcome to gitamine!</h1>
+        <h1>Welcome to Gitadmin!</h1>
         <h2>Recently opened repo</h2>
         <div className='actions'>
           {recentlyOpenedItems}

@@ -71,7 +71,7 @@ describe('reference helpers', () => {
 });
 
 describe('Settings', () => {
-  const dir = fs.mkdtempSync(Path.join(os.tmpdir(), 'gitamine-settings-'));
+  const dir = fs.mkdtempSync(Path.join(os.tmpdir(), 'gitadmin-settings-'));
   const path = Path.join(dir, 'Settings');
 
   afterEach(() => {
@@ -90,12 +90,12 @@ describe('Settings', () => {
     assert.deepEqual(Settings.getAll(), { name: 'Ada' });
   });
 
-  it('reads the file written by electron-settings', () => {
-    fs.writeFileSync(path, JSON.stringify({ gitamine: { email: 'ada@example.com' }, other: 1 }));
+  it('keeps the other keys of the settings file', () => {
+    fs.writeFileSync(path, JSON.stringify({ gitadmin: { email: 'ada@example.com' }, other: 1 }));
     Settings.setPath(path);
     assert.equal(Settings.get(Field.Email), 'ada@example.com');
     Settings.set(Field.Name, 'Ada');
-    assert.deepEqual(JSON.parse(fs.readFileSync(path).toString()), { gitamine: { email: 'ada@example.com', name: 'Ada' }, other: 1 });
+    assert.deepEqual(JSON.parse(fs.readFileSync(path).toString()), { gitadmin: { email: 'ada@example.com', name: 'Ada' }, other: 1 });
   });
 
   it('ignores a corrupted file', () => {
