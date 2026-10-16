@@ -226,6 +226,8 @@ export class TextPatchViewer extends React.PureComponent<TextPatchViewerProps, {
     this.editor.updateOptions({
       renderSideBySide: this.viewMode === ViewMode.Split
     });
+    // Out of the split view, the original editor only shows the old line numbers and the keyboard skips it
+    this.editor.getOriginalEditor().updateOptions({ tabIndex: this.viewMode === ViewMode.Split ? 0 : -1 });
     // Reset editor
     this.resetEditor();
     // Update models

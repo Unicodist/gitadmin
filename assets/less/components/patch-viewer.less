@@ -240,6 +240,16 @@ div.patch-viewer {
     align-items: center;
     gap: var(--space-1);
     margin-left: auto;
+
+    // Monaco draws a thin ring on the buttons it holds, even for the mouse, they get the ring of the app
+    button:focus {
+      outline: none;
+    }
+
+    button:focus-visible {
+      outline: 2px solid var(--focus-ring);
+      outline-offset: 2px;
+    }
   }
 
   .conflict-title {
