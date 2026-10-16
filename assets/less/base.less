@@ -133,13 +133,22 @@ svg.icon {
 
 /* Spinner */
 
+// Turns an element on itself. A spinner tells that something is happening, so with reduced motion it only turns slower.
+.spinning() {
+  animation: spin 0.8s linear infinite;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation-duration: 2.4s;
+  }
+}
+
 .spinner(@size) {
+  .spinning();
   width: @size;
   height: @size;
   border: max(2px, round((@size / 8))) solid var(--border);
   border-top-color: var(--accent);
   border-radius: 50%;
-  animation: spin 0.8s linear infinite;
 }
 
 div.spinner {
@@ -166,11 +175,6 @@ div.spinner {
     transition-duration: 0s !important;
     transition-delay: 0s !important;
     scroll-behavior: auto !important;
-  }
-
-  // A spinner tells that something is happening, it only turns slower
-  div.spinner {
-    animation-duration: 2.4s;
   }
 }
 
@@ -247,7 +251,9 @@ div.spinner {
 
 /* Ellipsis middle */
 
-// Shortens a path in the middle: the left part (folders) shrinks first
+// Shortens a path in the middle: the left part (folders) shrinks first.
+// Its text is not a usable accessible name, Chromium reads a space between the two parts: give the element
+// that holds it a name of its own, or hide it from assistive technologies when the path is said elsewhere.
 .ellipsis-middle {
   display: flex;
   min-width: 0;
