@@ -3,30 +3,13 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as Path from 'path';
 import { TestRepo, lines } from '../helpers';
-import { addOrigin, launchApp, LaunchedApp, openRecentRepo, sendMenuCommand } from './fixtures';
+import { addOrigin, launchApp, LaunchedApp, openRecentRepo, pickContextMenuItem, sendMenuCommand } from './fixtures';
 
 let repo: TestRepo;
 let launched: LaunchedApp;
 let app: ElectronApplication;
 let page: Page;
 let cleanup: string[];
-
-// Answers the next context menus with their item of this label, instead of showing them
-async function pickContextMenuItem(label: string) {
-  await app.evaluate(({ ipcMain }, label) => {
-    const find = (items: any[]): number | null => {
-      for (const item of items) {
-        const id = item.label === label ? item.id : (item.submenu ? find(item.submenu) : null);
-        if (id !== null && id !== undefined) {
-          return id;
-        }
-      }
-      return null;
-    };
-    ipcMain.removeHandler('popup-context-menu');
-    ipcMain.handle('popup-context-menu', (_event, items) => find(items));
-  }, label);
-}
 
 function createTempDir() {
   const path = fs.realpathSync.native(fs.mkdtempSync(Path.join(os.tmpdir(), 'gitadmin-dialogs-')));
@@ -212,7 +195,7 @@ test('initializes a repository in the folder that the dialog shows', async () =>
 
 test('renames a branch with the input dialog', async () => {
   await openRecentRepo(page, repo);
-  await pickContextMenuItem('Rename notes');
+  await pickContextMenuItem(app, 'Rename notes');
   await page.locator('.reference-explorer').getByRole('button', { name: 'notes', exact: true }).click({ button: 'right' });
   const dialog = page.getByRole('dialog', { name: 'Rename branch' });
   await expect(dialog.locator('label')).toHaveText('Name');

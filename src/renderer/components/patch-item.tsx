@@ -1,8 +1,7 @@
-import { clipboard } from 'electron';
 import * as React from 'react';
 import { RepoWrapper, PatchType, Patch } from '../helpers/repo-wrapper';
 import { openInEditor } from '../helpers/open-in-editor';
-import { buildMenu, MenuItem } from '../helpers/native';
+import { buildMenu, copyToClipboard, MenuItem } from '../helpers/native';
 import { describePatchPath, getPatchStatusDisplay, splitPath } from '../helpers/patch-status';
 import { Icon } from './icon';
 
@@ -75,7 +74,7 @@ export class PatchItem extends React.PureComponent<PatchItemProps, {}> {
       },
       {
         label: 'Copy file path to clipboard',
-        click: () => clipboard.writeText(path)
+        click: () => copyToClipboard(path)
       },
       {
         type: 'separator'

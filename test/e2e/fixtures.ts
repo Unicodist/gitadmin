@@ -58,6 +58,23 @@ export async function sendMenuCommand(app: ElectronApplication, command: string)
   await app.evaluate(({ BrowserWindow }, command) => BrowserWindow.getAllWindows()[0].webContents.send(command), command);
 }
 
+// Answers the next context menus with their item of this label, instead of showing them
+export async function pickContextMenuItem(app: ElectronApplication, label: string) {
+  await app.evaluate(({ ipcMain }, label) => {
+    const find = (items: any[]): number | null => {
+      for (const item of items) {
+        const id = item.label === label ? item.id : (item.submenu ? find(item.submenu) : null);
+        if (id !== null && id !== undefined) {
+          return id;
+        }
+      }
+      return null;
+    };
+    ipcMain.removeHandler('popup-context-menu');
+    ipcMain.handle('popup-context-menu', (_event, items) => find(items));
+  }, label);
+}
+
 // Opens a repository from the recently opened repositories of the welcome screen
 export async function openRecentRepo(page: Page, repo: TestRepo) {
   await page.getByRole('heading', { name: Path.basename(repo.workdir) }).click();

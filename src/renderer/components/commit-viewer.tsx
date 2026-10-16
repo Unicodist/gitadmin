@@ -4,6 +4,7 @@ import { Icon } from './icon';
 import { PatchType, RepoWrapper, shortenSha, Commit, Patch } from '../helpers/repo-wrapper';
 import { CancellablePromise, makeCancellable } from '../helpers/make-cancellable';
 import { formatCommitDate, formatFullDate } from '../helpers/viewer-format';
+import { copyToClipboard } from '../helpers/native';
 
 function renderDate(date: Date) {
   return <time dateTime={date.toISOString()} title={formatFullDate(date)}>{formatCommitDate(date)}</time>;
@@ -89,10 +90,9 @@ export class CommitViewer extends React.PureComponent<CommitViewerProps, CommitV
     function handleHover(event: React.SyntheticEvent<HTMLButtonElement>) {
       setTooltipText(event.currentTarget, 'Copy');
     }
-    // The clipboard module of Electron is no longer available in the renderer
     function handleClick(event: React.MouseEvent<HTMLButtonElement>) {
       const button = event.currentTarget;
-      navigator.clipboard.writeText(sha).then(() => setTooltipText(button, 'Copied'));
+      copyToClipboard(sha).then(() => setTooltipText(button, 'Copied'));
     }
     const shortSha = shortenSha(sha);
     return (

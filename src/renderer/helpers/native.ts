@@ -44,6 +44,11 @@ export function buildMenu(template: MenuItem[]) {
   return new ContextMenu(template);
 }
 
+// Copies a text to the clipboard. The clipboard module of Electron is only available in the main process.
+export function copyToClipboard(text: string) {
+  return navigator.clipboard.writeText(text);
+}
+
 // Asks the user to pick a directory, returns null if the dialog is cancelled
 export async function showOpenDirectoryDialog() {
   const result: Electron.OpenDialogReturnValue = await ipcRenderer.invoke('show-open-dialog', {
