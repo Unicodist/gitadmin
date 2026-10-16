@@ -3,6 +3,9 @@
 @toolbar-button-height: 32px;
 // Space between the buttons of a group
 @toolbar-group-gap: 2px;
+// Smallest width of the title and of the end of the toolbar. As they are as wide as each other, the
+// buttons are in the middle of the window, unless a long title pushes them to the right.
+@toolbar-side-width: clamp(0px, calc(50vw - 320px), 240px);
 
 div.repo-toolbar {
   position: relative;
@@ -16,13 +19,12 @@ div.repo-toolbar {
   border-bottom: 1px solid var(--border);
   background-color: var(--surface-1);
 
-  // The title and the end share the free space equally, so that the buttons are centered in the window
   div.repo-title {
-    flex: 1 1 0;
-    min-width: 0;
+    flex: 0 1 auto;
+    min-width: @toolbar-side-width;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: var(--space-3);
 
     span.repo-icon {
       flex: none;
@@ -46,9 +48,10 @@ div.repo-toolbar {
   }
 
   div.toolbar-buttons {
-    flex: none;
+    flex: 1 0 auto;
     display: flex;
     align-items: center;
+    justify-content: center;
   }
 
   div.toolbar-group {
@@ -68,34 +71,21 @@ div.repo-toolbar {
   }
 
   div.toolbar-end {
-    flex: 1 1 0;
+    flex: none;
     display: flex;
     justify-content: flex-end;
+    min-width: @toolbar-side-width;
   }
 
   button {
     height: @toolbar-button-height;
-    padding: 0 10px;
   }
 }
 
-// In a narrow window, the title takes the space that it needs and the buttons are centered in the rest
-@media (max-width: 960px) {
+// Tighter in a narrow window, so that the title keeps enough room
+@media (max-width: 1024px) {
   div.repo-toolbar {
     gap: var(--space-3);
-
-    div.repo-title {
-      flex: 0 1 auto;
-    }
-
-    div.toolbar-buttons {
-      flex: 1 0 auto;
-      justify-content: center;
-    }
-
-    div.toolbar-end {
-      flex: none;
-    }
 
     button {
       padding: 0 var(--space-2);
@@ -113,6 +103,15 @@ button.spinner-button {
 
   &[aria-busy="true"] {
     cursor: progress;
+  }
+
+  // Like a disabled button, a busy button does not react to the mouse
+  &.ghost-button[aria-busy="true"] {
+    &:hover,
+    &:active {
+      background-color: transparent;
+      color: var(--text-secondary);
+    }
   }
 
   // Without an icon, the spinner covers the label, which keeps its width
