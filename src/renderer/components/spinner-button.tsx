@@ -1,6 +1,6 @@
 import * as React from 'react';
 
-export interface SpinnerButtonProps { 
+export interface SpinnerButtonProps {
   value: string;
   onClick: () => Promise<void>;
 }
@@ -14,7 +14,7 @@ export class SpinnerButton extends React.PureComponent<SpinnerButtonProps, Spinn
     super(props);
     this.state = {
       waiting: false
-    }
+    };
     this.handleClick = this.handleClick.bind(this);
   }
 
@@ -27,7 +27,7 @@ export class SpinnerButton extends React.PureComponent<SpinnerButtonProps, Spinn
   render() {
     return (
       <button onClick={this.handleClick}>
-        {!this.state.waiting ? 
+        {!this.state.waiting ?
           this.props.value :
           <div className='spinner' />}
       </button>

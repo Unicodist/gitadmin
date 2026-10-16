@@ -1,8 +1,8 @@
-import { remote } from 'electron';
 import { RepoWrapper } from './repo-wrapper';
+import { buildMenu, MenuItem } from './native';
 
 export function createStashContextMenu(repo: RepoWrapper, stashIndex: number) {
-  const template: Electron.MenuItemConstructorOptions[] = [];
+  const template: MenuItem[] = [];
   template.push(
     {
       label: 'Apply stash',
@@ -17,5 +17,5 @@ export function createStashContextMenu(repo: RepoWrapper, stashIndex: number) {
       click: () => repo.dropStash(stashIndex)
     },
   );
-  return remote.Menu.buildFromTemplate(template);
+  return buildMenu(template);
 }

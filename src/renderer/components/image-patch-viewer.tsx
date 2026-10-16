@@ -1,10 +1,9 @@
 import * as React from 'react';
-import * as Git from 'nodegit';
-import { RepoWrapper } from '../helpers/repo-wrapper';
+import { RepoWrapper, Patch } from '../helpers/repo-wrapper';
 
-export interface ImagePatchViewerProps { 
+export interface ImagePatchViewerProps {
   repo: RepoWrapper;
-  patch: Git.ConvenientPatch;
+  patch: Patch;
   oldBuffer: Buffer;
   newBuffer: Buffer;
 }
@@ -22,16 +21,16 @@ export class ImagePatchViewer extends React.PureComponent<ImagePatchViewerProps,
       URL.revokeObjectURL(this.newUrl);
     }
     // Create new urls
-    this.oldUrl = URL.createObjectURL(new Blob([this.props.oldBuffer]));
-    this.newUrl = URL.createObjectURL(new Blob([this.props.newBuffer]));
+    this.oldUrl = URL.createObjectURL(new Blob([new Uint8Array(this.props.oldBuffer)]));
+    this.newUrl = URL.createObjectURL(new Blob([new Uint8Array(this.props.newBuffer)]));
     return (
       <div className='image-viewer'>
         <p>Old file:</p>
-        {this.props.patch.oldFile().flags() & Git.Diff.FLAG.EXISTS ?
+        {this.props.patch.oldFile.exists ?
         <img src={this.oldUrl} /> :
         null}
         <p>New file:</p>
-        {this.props.patch.newFile().flags() & Git.Diff.FLAG.EXISTS ?
+        {this.props.patch.newFile.exists ?
         <img src={this.newUrl} /> :
         null}
       </div>

@@ -1,16 +1,15 @@
 import * as React from 'react';
-import * as Git from 'nodegit';
 import { ReferenceItem } from './reference-item';
 import { InputDialogHandler } from './input-dialog';
-import { RepoWrapper } from '../helpers/repo-wrapper';
+import { RepoWrapper, Commit, Reference } from '../helpers/repo-wrapper';
 
-export interface ReferenceListProps { 
+export interface ReferenceListProps {
   title: string;
   repo: RepoWrapper;
-  head: Git.Reference | null;
-  references: Git.Reference[];
+  head: Reference | null;
+  references: Reference[];
   onOpenInputDialog: InputDialogHandler;
-  onClick: (commit: Git.Commit) => void;
+  onClick: (commit: Commit) => void;
 }
 
 export interface ReferenceListState {
@@ -22,7 +21,7 @@ export class ReferenceList extends React.PureComponent<ReferenceListProps, Refer
     super(props);
     this.state = {
       hide: false
-    }
+    };
     this.handleClick = this.handleClick.bind(this);
   }
 
@@ -38,10 +37,10 @@ export class ReferenceList extends React.PureComponent<ReferenceListProps, Refer
       .map((reference) => {
         const name = reference.name();
         return <ReferenceItem repo={this.props.repo}
-          reference={reference} 
+          reference={reference}
           selected={this.props.head !== null && this.props.head.name() === reference.name()}
           onOpenInputDialog={this.props.onOpenInputDialog}
-          onClick={() => this.props.onClick(this.props.repo.getReferenceCommit(name, reference))} 
+          onClick={() => this.props.onClick(this.props.repo.getReferenceCommit(reference))}
           key={name} />;
       });
     return (

@@ -1,18 +1,18 @@
-import { remote, clipboard } from 'electron';
+import { clipboard } from 'electron';
 import * as React from 'react';
-import * as Git from 'nodegit';
-import { RepoWrapper, PatchType } from '../helpers/repo-wrapper';
+import { RepoWrapper, PatchType, Patch } from '../helpers/repo-wrapper';
 import { openInEditor } from '../helpers/open-in-editor';
+import { buildMenu, MenuItem } from '../helpers/native';
 
-export interface PatchItemProps { 
+export interface PatchItemProps {
   repo?: RepoWrapper;
-  patch: Git.ConvenientPatch;
+  patch: Patch;
   type: PatchType;
   selected: boolean;
-  onPatchSelect: (patch: Git.ConvenientPatch, ctrlKey: boolean, shiftKey: boolean) => void;
+  onPatchSelect: (patch: Patch, ctrlKey: boolean, shiftKey: boolean) => void;
 }
 
-function getPatchIcon(patch: Git.ConvenientPatch) {
+function getPatchIcon(patch: Patch) {
   if (patch.isAdded() || patch.isUntracked()) {
     return <span className='icon patch-add' />;
   } else if (patch.isDeleted()) {
@@ -53,8 +53,8 @@ export class PatchItem extends React.PureComponent<PatchItemProps, {}> {
 
   handleContextMenu(event: React.MouseEvent<HTMLLIElement>) {
     event.preventDefault();
-    const path = this.props.patch.newFile().path();
-    const template: Electron.MenuItemConstructorOptions[] = [];
+    const path = this.props.patch.newFile.path;
+    const template: MenuItem[] = [];
     if (this.props.type === PatchType.Unstaged) {
       template.push(
         {
@@ -88,32 +88,32 @@ export class PatchItem extends React.PureComponent<PatchItemProps, {}> {
         click: () => openInEditor(path)
       }
     );
-    const menu = remote.Menu.buildFromTemplate(template);
-    menu.popup({});
+    const menu = buildMenu(template);
+    menu.popup();
   }
 
   render() {
     // Buttons
-    const buttons: JSX.Element[] = [];
+    const buttons: React.JSX.Element[] = [];
     if (this.props.type === PatchType.Unstaged) {
-      buttons.push(<button className='green-button' 
+      buttons.push(<button className='green-button'
         type='button'
-        onClick={this.handleStageClick} 
+        onClick={this.handleStageClick}
         key='stage'>Stage</button>);
     } else if (this.props.type === PatchType.Staged) {
       buttons.push(<button className='red-button'
         type='button'
-        onClick={this.handleUnstageClick} 
+        onClick={this.handleUnstageClick}
         key='unstage'>Unstage</button>);
     }
-    const buttonDiv = buttons.length > 0 ? 
-      <div className='buttons'>{buttons}</div> : 
+    const buttonDiv = buttons.length > 0 ?
+      <div className='buttons'>{buttons}</div> :
       null;
 
-    const path = this.props.patch.newFile().path();
+    const path = this.props.patch.newFile.path;
     const i = Math.max(path.lastIndexOf('/'), 0);
     return (
-      <li className={this.props.selected ? 'selected-patch' : ''}  
+      <li className={this.props.selected ? 'selected-patch' : ''}
         onClick={this.handleClick}
         onContextMenu={this.handleContextMenu}>
         {getPatchIcon(this.props.patch)}

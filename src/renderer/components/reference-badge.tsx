@@ -1,11 +1,10 @@
 import * as React from 'react';
-import * as Git from 'nodegit';
-import { RepoWrapper } from "../helpers/repo-wrapper";
+import { RepoWrapper, Reference } from '../helpers/repo-wrapper';
 import { createReferenceContextMenu } from '../helpers/reference-context-menu';
 import { InputDialogHandler } from './input-dialog';
 
 export class ReferenceBadgeProps {
-  reference: Git.Reference;
+  reference: Reference;
   color: string;
   selected: boolean;
   repo: RepoWrapper;
@@ -23,16 +22,16 @@ export class ReferenceBadge extends React.PureComponent<ReferenceBadgeProps, {}>
     event.preventDefault();
     event.stopPropagation();
     const menu = createReferenceContextMenu(this.props.repo, this.props.reference, this.props.selected, this.props.onOpenInputDialog);
-    menu.popup({});
+    menu.popup();
   }
 
   handleDoubleClick() {
-    this.props.repo.checkoutReference(this.props.reference)
+    this.props.repo.checkoutReference(this.props.reference);
   }
 
   render() {
-    const style = {};
-    style['--branch-color'] = this.props.color; 
+    const style: Record<string, string> = {};
+    style['--branch-color'] = this.props.color;
     const classNames = ['reference'];
     if (this.props.reference.isTag()) {
       classNames.push('tag');
@@ -41,8 +40,8 @@ export class ReferenceBadge extends React.PureComponent<ReferenceBadgeProps, {}>
       classNames.push('selected');
     }
     return (
-      <span className={classNames.join(' ')} style={style} 
-        onContextMenu={this.handleContextMenu} 
+      <span className={classNames.join(' ')} style={style}
+        onContextMenu={this.handleContextMenu}
         onDoubleClick={this.handleDoubleClick}>
         {this.props.reference.shorthand()}
       </span>

@@ -1,7 +1,7 @@
 import * as Path from 'path';
-import { remote } from 'electron';
 import * as React from 'react';
 import { makeModal } from './make-modal';
+import { showOpenDirectoryDialog } from '../helpers/native';
 
 export class InitRepoFormProps {
   onClose: () => void;
@@ -21,7 +21,7 @@ class InitRepoForm extends React.PureComponent<InitRepoFormProps, InitRepoFormSt
       repoName: '',
       repoPath: '',
       repoFolder: ''
-    }
+    };
     this.handleRepoNameChange = this.handleRepoNameChange.bind(this);
     this.handleRepoPathChange = this.handleRepoPathChange.bind(this);
     this.handleBrowseClick = this.handleBrowseClick.bind(this);
@@ -38,14 +38,11 @@ class InitRepoForm extends React.PureComponent<InitRepoFormProps, InitRepoFormSt
   }
 
   handleBrowseClick() {
-    remote.dialog.showOpenDialog(remote.getCurrentWindow(), 
-      {properties: ['openDirectory']}, 
-      (paths) => {
-        if (paths) {
-          this.setState({repoPath: paths[0]});
-        }
+    showOpenDirectoryDialog().then((path) => {
+      if (path) {
+        this.setState({repoPath: path});
       }
-    );
+    });
   }
 
   handleRepoFolderChange(event: React.ChangeEvent<HTMLInputElement>) {
@@ -72,18 +69,18 @@ class InitRepoForm extends React.PureComponent<InitRepoFormProps, InitRepoFormSt
       <form className='modal-form' onSubmit={this.handleSubmit}>
         <div className='field-container'>
           <label htmlFor='name'>Name:</label>
-          <input type='text' 
-            id='name' 
-            name='repo-name' 
+          <input type='text'
+            id='name'
+            name='repo-name'
             value={this.state.repoName}
             autoFocus={true}
             onChange={this.handleRepoNameChange} />
         </div>
         <div className='field-container'>
           <label htmlFor='path'>Initialize in:</label>
-          <input type='text' 
-            id='path' 
-            name='repo-path' 
+          <input type='text'
+            id='path'
+            name='repo-path'
             value={this.state.repoPath}
             onChange={this.handleRepoPathChange} />
           <button type='button'
@@ -94,16 +91,16 @@ class InitRepoForm extends React.PureComponent<InitRepoFormProps, InitRepoFormSt
         <div className='field-container'>
           <label htmlFor='folder'>Full path:</label>
           <span id='prefix'>{this.state.repoPath}{Path.sep}</span>
-          <input type='text' 
-            id='folder' 
-            name='repo-folder' 
+          <input type='text'
+            id='folder'
+            name='repo-folder'
             placeholder={this.state.repoName}
             value={this.state.repoFolder}
             onChange={this.handleRepoFolderChange} />
         </div>
         <div className='button-container'>
           <button className='green-button'
-            type='submit' 
+            type='submit'
             disabled={!this.isPathValid()}>
             Create repository
           </button>

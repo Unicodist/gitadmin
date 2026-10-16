@@ -50,7 +50,7 @@ function parseConflictHunks(tokens: Token[]) {
       hunk.ancestors.push(tokens[i].index);
       ++i;
     }
-    if (i + 1 < tokens.length && 
+    if (i + 1 < tokens.length &&
       tokens[i].type === TokenType.Separator &&
       tokens[i + 1].type === TokenType.End) {
       hunk.separator = tokens[i].index;

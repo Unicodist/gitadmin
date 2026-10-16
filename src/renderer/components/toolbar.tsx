@@ -1,13 +1,12 @@
 import * as React from 'react';
-import * as Git from 'nodegit';
-import { RepoWrapper, removeReferencePrefix } from '../helpers/repo-wrapper';
+import { RepoWrapper, removeReferencePrefix, Commit } from '../helpers/repo-wrapper';
 import { SpinnerButton } from './spinner-button';
 
 export class ToolbarProps {
   repo: RepoWrapper;
-  selectedCommit: Git.Commit | null;
+  selectedCommit: Commit | null;
   onRepoClose: () => void;
-  onCreateBranch: (commit: Git.Commit) => void;
+  onCreateBranch: (commit: Commit) => void;
 }
 
 export class Toolbar extends React.PureComponent<ToolbarProps, {}> {

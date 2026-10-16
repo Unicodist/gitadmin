@@ -1,7 +1,7 @@
 import * as Path from 'path';
-import { remote } from 'electron';
 import * as React from 'react';
 import { makeModal } from './make-modal';
+import { showOpenDirectoryDialog } from '../helpers/native';
 
 export class CloneRepoFormProps {
   onClose: () => void;
@@ -21,7 +21,7 @@ class CloneRepoForm extends React.PureComponent<CloneRepoFormProps, CloneRepoFor
       repoPath: '',
       repoUrl: '',
       repoFolder: ''
-    }
+    };
     this.handleRepoPathChange = this.handleRepoPathChange.bind(this);
     this.handleBrowseClick = this.handleBrowseClick.bind(this);
     this.handleRepoUrlChange = this.handleRepoUrlChange.bind(this);
@@ -34,14 +34,11 @@ class CloneRepoForm extends React.PureComponent<CloneRepoFormProps, CloneRepoFor
   }
 
   handleBrowseClick() {
-    remote.dialog.showOpenDialog(remote.getCurrentWindow(), 
-      {properties: ['openDirectory']}, 
-      (paths) => {
-        if (paths) {
-          this.setState({repoPath: paths[0]});
-        }
+    showOpenDirectoryDialog().then((path) => {
+      if (path) {
+        this.setState({repoPath: path});
       }
-    );
+    });
   }
 
   handleRepoUrlChange(event: React.ChangeEvent<HTMLInputElement>) {
@@ -53,7 +50,7 @@ class CloneRepoForm extends React.PureComponent<CloneRepoFormProps, CloneRepoFor
   }
 
   handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault(); 
+    event.preventDefault();
     if (this.isPathValid()) {
       const folderName = this.state.repoFolder || Path.parse(this.state.repoUrl).name;
       const fullPath = Path.join(this.state.repoPath, folderName);
@@ -72,9 +69,9 @@ class CloneRepoForm extends React.PureComponent<CloneRepoFormProps, CloneRepoFor
       <form className='modal-form' onSubmit={this.handleSubmit}>
         <div className='field-container'>
           <label htmlFor='path'>Where to clone to:</label>
-          <input type='text' 
-            id='path' 
-            name='repo-path' 
+          <input type='text'
+            id='path'
+            name='repo-path'
             value={this.state.repoPath}
             autoFocus={true}
             onChange={this.handleRepoPathChange} />
@@ -85,25 +82,25 @@ class CloneRepoForm extends React.PureComponent<CloneRepoFormProps, CloneRepoFor
         </div>
         <div className='field-container'>
           <label htmlFor='url'>URL:</label>
-          <input type='text' 
-            id='url' 
-            name='repo-url' 
+          <input type='text'
+            id='url'
+            name='repo-url'
             value={this.state.repoUrl}
             onChange={this.handleRepoUrlChange} />
         </div>
         <div className='field-container'>
           <label htmlFor='folder'>Full path:</label>
           <span id='prefix'>{this.state.repoPath}{Path.sep}</span>
-          <input type='text' 
-            id='folder' 
-            name='repo-folder' 
+          <input type='text'
+            id='folder'
+            name='repo-folder'
             placeholder={Path.parse(this.state.repoUrl).name}
             value={this.state.repoFolder}
             onChange={this.handleRepoFolderChange} />
         </div>
         <div className='button-container'>
           <button className='green-button'
-            type='submit' 
+            type='submit'
             disabled={!this.isPathValid()}>
             Clone the repository
           </button>

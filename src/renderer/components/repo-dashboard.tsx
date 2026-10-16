@@ -2,7 +2,6 @@ import * as Path from 'path';
 import * as fs from 'fs';
 import * as chokidar from 'chokidar';
 import * as React from 'react';
-import * as Git from 'nodegit';
 import { GraphViewer } from './graph-viewer';
 import { CommitViewer } from './commit-viewer';
 import { IndexViewer } from './index-viewer';
@@ -12,23 +11,23 @@ import { Splitter } from './splitter';
 import { Toolbar } from './toolbar';
 import { LoadingScreen, LoadingState } from './loading-screen';
 import { InputDialogHandler } from './input-dialog';
-import { RepoWrapper, PatchType, RepoState } from '../helpers/repo-wrapper';
+import { RepoWrapper, PatchType, RepoState, Commit, Patch } from '../helpers/repo-wrapper';
 import { CancellablePromise, makeCancellable } from '../helpers/make-cancellable';
 
-export interface RepoDashboardProps { 
+export interface RepoDashboardProps {
   repo: RepoWrapper;
   editorTheme: string;
   patchViewerOptions: TextPatchViewerOptions;
   onRepoClose: () => void;
-  onCreateBranch: (commit: Git.Commit) => void;
+  onCreateBranch: (commit: Commit) => void;
   onOpenInputDialog: InputDialogHandler;
 }
 
-export interface RepoDashboardState { 
+export interface RepoDashboardState {
   repoState: RepoState;
   loadingState: LoadingState;
-  selectedCommit: Git.Commit | null;
-  selectedPatch: Git.ConvenientPatch | null;
+  selectedCommit: Commit | null;
+  selectedPatch: Patch | null;
   patchType: PatchType;
 }
 
@@ -37,13 +36,13 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
   loadingPromise: CancellablePromise<void>;
   graphShrunk: boolean;
   // References
-  graphViewer: React.RefObject<GraphViewer>;
-  rightViewer: React.RefObject<CommitViewer | IndexViewer>;
+  graphViewer: React.RefObject<GraphViewer | null>;
+  rightViewer: React.RefObject<CommitViewer | IndexViewer | null>;
   // Watches
   repositoryWatcher: fs.FSWatcher;
   dirtyWorkingDirectory: boolean;
   workingDirectoryWatcher: chokidar.FSWatcher;
-  workingDirectoryTimer: NodeJS.Timer;
+  workingDirectoryTimer: NodeJS.Timeout;
   referencesWatcher: chokidar.FSWatcher;
 
   constructor(props: RepoDashboardProps) {
@@ -93,8 +92,8 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
     this.removeWatchers();
   }
 
-  handleCommitSelect(commit: Git.Commit) {
-    return new Promise((resolve) => {
+  handleCommitSelect(commit: Commit) {
+    return new Promise<void>((resolve) => {
       this.setState({
         selectedCommit: commit
       }, () => resolve());
@@ -102,14 +101,14 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
   }
 
   handleIndexSelect() {
-    return new Promise((resolve) => {
+    return new Promise<void>((resolve) => {
       this.setState({
         selectedCommit: null
       }, () => resolve());
     });
   }
 
-  handlePatchSelect(patch: Git.ConvenientPatch | null, type: PatchType) {
+  handlePatchSelect(patch: Patch | null, type: PatchType) {
     this.setState({
       selectedPatch: patch,
       patchType: type
@@ -127,14 +126,17 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
       this.rightViewer.current.resize(offset);
     }
   }
-  
+
   setWatchers() {
     const path = this.props.repo.path;
-    // Watch index and head 
+    // Watch index and head
     // fs.watch seems sufficient for that, I should try with chokidar
-    this.repositoryWatcher = fs.watch(path, async (error: string, filename: string) => {
+    this.repositoryWatcher = fs.watch(path, async (_event, filename) => {
       this.handleStateUpdate();
       if (filename === 'index') {
+        this.handleIndexUpdate();
+      } else if (filename === 'packed-refs') {
+        await this.handleReferencesUpdate();
         this.handleIndexUpdate();
       } else if (filename === 'HEAD') {
         await this.handleHeadUpdate();
@@ -143,13 +145,13 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
     });
 
     // Watch working directory
-    const wdPath = this.props.repo.repo.workdir();
+    const wdPath = this.props.repo.workdir;
     this.workingDirectoryWatcher = chokidar.watch(wdPath, {
       ignoreInitial: true,
       ignored: [/(.*\.git(\/.*|$))/, (path: string) => this.props.repo.isIgnored(Path.relative(wdPath, path))],
       followSymlinks: false,
     });
-    this.workingDirectoryWatcher.on('all', async (event: string, path: string) => {
+    this.workingDirectoryWatcher.on('all', async (_event: string, path: string) => {
       if (path.endsWith('.gitignore')) {
         this.props.repo.updateIgnore();
       }
@@ -169,7 +171,7 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
       ignored: /.*\.lock$/,
       followSymlinks: false
     });
-    this.referencesWatcher.on('all', async (event: string, path: string) => {
+    this.referencesWatcher.on('all', async () => {
       await this.handleReferencesUpdate();
       this.handleStateUpdate();
       this.handleIndexUpdate();
@@ -219,7 +221,7 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
       this.graphViewer.current.updateGraph();
     }
     // If the selected commit is removed, switch to index
-    if (this.state.selectedCommit && 
+    if (this.state.selectedCommit &&
       !this.props.repo.shaToCommit.has(this.state.selectedCommit.sha())) {
         this.handleIndexSelect();
     }
@@ -236,48 +238,48 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
   }
 
   render() {
-    let leftViewer; 
+    let leftViewer;
     if (this.state.selectedPatch) {
-      leftViewer = <PatchViewer repo={this.props.repo} 
-        patch={this.state.selectedPatch!} 
+      leftViewer = <PatchViewer repo={this.props.repo}
+        patch={this.state.selectedPatch!}
         patchType={this.state.patchType}
         editorTheme={this.props.editorTheme}
         options={this.props.patchViewerOptions}
-        onClose={this.handlePatchUnselect} /> 
+        onClose={this.handlePatchUnselect} />;
     } else {
       if (this.state.loadingState !== LoadingState.Loaded) {
-        leftViewer = <LoadingScreen state={this.state.loadingState} />
+        leftViewer = <LoadingScreen state={this.state.loadingState} />;
       } else {
-        leftViewer = <GraphViewer repo={this.props.repo} 
+        leftViewer = <GraphViewer repo={this.props.repo}
           repoState={this.state.repoState}
-          selectedCommit={this.state.selectedCommit} 
+          selectedCommit={this.state.selectedCommit}
           onCommitSelect={this.handleCommitSelect}
-          onIndexSelect={this.handleIndexSelect} 
+          onIndexSelect={this.handleIndexSelect}
           onCreateBranch={this.props.onCreateBranch}
           onOpenInputDialog={this.props.onOpenInputDialog}
-          ref={this.graphViewer} />
+          ref={this.graphViewer} />;
       }
     }
     let rightViewer;
     if (this.state.selectedCommit) {
       rightViewer = <CommitViewer repo={this.props.repo}
-        commit={this.state.selectedCommit} 
-        selectedPatch={this.state.selectedPatch} 
+        commit={this.state.selectedCommit}
+        selectedPatch={this.state.selectedPatch}
         onCommitSelect={this.handleCommitSelect}
-        onPatchSelect={this.handlePatchSelect} 
-        ref={this.rightViewer as React.RefObject<CommitViewer>} />
+        onPatchSelect={this.handlePatchSelect}
+        ref={this.rightViewer as React.RefObject<CommitViewer | null>} />;
     } else {
-      rightViewer = <IndexViewer repo={this.props.repo} 
+      rightViewer = <IndexViewer repo={this.props.repo}
         repoState={this.state.repoState}
-        selectedPatch={this.state.selectedPatch} 
-        onPatchSelect={this.handlePatchSelect} 
-        ref={this.rightViewer as React.RefObject<IndexViewer>} />
+        selectedPatch={this.state.selectedPatch}
+        onPatchSelect={this.handlePatchSelect}
+        ref={this.rightViewer as React.RefObject<IndexViewer | null>} />;
     }
     return (
       <div className='repo-dashboard'>
-        <Toolbar repo={this.props.repo} 
-          selectedCommit={this.state.selectedCommit} 
-          onRepoClose={this.props.onRepoClose} 
+        <Toolbar repo={this.props.repo}
+          selectedCommit={this.state.selectedCommit}
+          onRepoClose={this.props.onRepoClose}
           onCreateBranch={this.props.onCreateBranch} />
         <div className='repo-content'>
           {leftViewer}

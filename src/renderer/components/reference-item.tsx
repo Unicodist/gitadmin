@@ -1,12 +1,11 @@
 import * as React from 'react';
-import * as Git from 'nodegit';
-import { RepoWrapper } from '../helpers/repo-wrapper';
+import { RepoWrapper, Reference } from '../helpers/repo-wrapper';
 import { createReferenceContextMenu } from '../helpers/reference-context-menu';
 import { InputDialogHandler } from './input-dialog';
 
-export interface ReferenceItemProps { 
+export interface ReferenceItemProps {
   repo: RepoWrapper;
-  reference: Git.Reference;
+  reference: Reference;
   selected: boolean;
   onOpenInputDialog: InputDialogHandler;
   onClick: () => void;
@@ -22,7 +21,7 @@ export class ReferenceItem extends React.PureComponent<ReferenceItemProps, {}> {
   handleContextMenu(event: React.MouseEvent<HTMLSpanElement>) {
     event.preventDefault();
     const menu = createReferenceContextMenu(this.props.repo, this.props.reference, this.props.selected, this.props.onOpenInputDialog);
-    menu.popup({});
+    menu.popup();
   }
 
   handleDoubleClick() {
@@ -31,7 +30,7 @@ export class ReferenceItem extends React.PureComponent<ReferenceItemProps, {}> {
 
   render() {
     return (
-      <li className={this.props.selected ? 'selected' : ''} 
+      <li className={this.props.selected ? 'selected' : ''}
         onClick={this.props.onClick}
         onContextMenu={this.handleContextMenu}
         onDoubleClick={this.handleDoubleClick}>

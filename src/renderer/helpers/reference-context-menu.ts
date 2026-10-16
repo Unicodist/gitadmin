@@ -1,32 +1,32 @@
-import { remote, clipboard } from 'electron';
-import * as Git from 'nodegit';
-import { RepoWrapper, removeReferencePrefix } from './repo-wrapper';
+import { clipboard } from 'electron';
+import { RepoWrapper, removeReferencePrefix, Reference } from './repo-wrapper';
 import { InputDialogHandler } from '../components/input-dialog';
+import { buildMenu, MenuItem } from './native';
 
-function createBranchContextMenu(repo: RepoWrapper, 
-  reference: Git.Reference, 
-  currentBranch: boolean, 
+function createBranchContextMenu(repo: RepoWrapper,
+  reference: Reference,
+  currentBranch: boolean,
   onOpenInputDialog: InputDialogHandler) {
   function openRenameBranchDialog() {
     onOpenInputDialog('Rename branch', 'Name', 'Rename', (value) => repo.renameReference(reference, value), shortName);
   }
 
   const shortName = reference.shorthand();
-  const template: Electron.MenuItemConstructorOptions[] = [
+  const template: MenuItem[] = [
     {
       label: `Checkout to ${shortName}`,
       click: () => repo.checkoutReference(reference),
-      enabled: reference.isBranch() === 1 && !currentBranch
+      enabled: reference.isBranch() && !currentBranch
     },
     {
       label: `Rename ${shortName}`,
       click: openRenameBranchDialog,
-      enabled: reference.isBranch() === 1 && !currentBranch
+      enabled: reference.isBranch() && !currentBranch
     },
     {
       label: `Remove ${shortName}`,
       click: () => repo.removeReference(reference),
-      enabled: reference.isBranch() === 1 && !currentBranch
+      enabled: reference.isBranch() && !currentBranch
     },
     {
       type: 'separator'
@@ -34,7 +34,7 @@ function createBranchContextMenu(repo: RepoWrapper,
     {
       label: `Merge ${shortName} into ${removeReferencePrefix(repo.head!.name())}`,
       click: () => repo.merge(repo.head!.name(), reference.name()),
-      enabled: reference.isBranch() === 1 && !currentBranch && repo.head !== null
+      enabled: reference.isBranch() && !currentBranch && repo.head !== null
     },
     {
       type: 'separator'
@@ -44,18 +44,18 @@ function createBranchContextMenu(repo: RepoWrapper,
       click: () => clipboard.writeText(shortName)
     }
   ];
-  return remote.Menu.buildFromTemplate(template);
+  return buildMenu(template);
 }
 
-function createTagContextMenu(repo: RepoWrapper, 
-  reference: Git.Reference, 
+function createTagContextMenu(repo: RepoWrapper,
+  reference: Reference,
   onOpenInputDialog: InputDialogHandler) {
   function openRenameTagDialog() {
     onOpenInputDialog('Rename tag', 'Name', 'Rename', (value) => repo.renameReference(reference, value), shortName);
   }
 
   const shortName = reference.shorthand();
-  const template: Electron.MenuItemConstructorOptions[] = [
+  const template: MenuItem[] = [
     {
       label: `Rename ${shortName}`,
       click: openRenameTagDialog,
@@ -72,12 +72,12 @@ function createTagContextMenu(repo: RepoWrapper,
       click: () => clipboard.writeText(shortName)
     }
   ];
-  return remote.Menu.buildFromTemplate(template);
+  return buildMenu(template);
 }
 
-export function createReferenceContextMenu(repo: RepoWrapper, 
-  reference: Git.Reference, 
-  currentBranch: boolean, 
+export function createReferenceContextMenu(repo: RepoWrapper,
+  reference: Reference,
+  currentBranch: boolean,
   onOpenInputDialog: InputDialogHandler) {
   if (reference.isTag()) {
     return createTagContextMenu(repo, reference, onOpenInputDialog);

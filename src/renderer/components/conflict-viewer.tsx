@@ -1,19 +1,15 @@
 import * as fs from 'fs';
 import * as Path from 'path';
 import * as React from 'react';
-import * as Git from 'nodegit';
-import { RepoWrapper } from '../helpers/repo-wrapper'
+import { RepoWrapper, Patch } from '../helpers/repo-wrapper';
 import { openInEditor } from '../helpers/open-in-editor';
 import { arePatchesSimilar } from '../helpers/patch-comparison';
 import { ConflictHunk, findConflictHunks } from '../helpers/conflict-parser';
+import { loadMonaco } from '../helpers/monaco-loader';
 
 // Load Monaco
 
-const loadMonaco = require('monaco-loader')
 let monaco: any;
-loadMonaco().then((m: any) => {
-  monaco = m;
-});
 
 // ConflictViewer
 
@@ -26,16 +22,16 @@ export interface ConflictViewerOptions {
   fontSize: number;
 }
 
-export interface ConflictViewerProps { 
+export interface ConflictViewerProps {
   repo: RepoWrapper;
-  patch: Git.ConvenientPatch;
+  patch: Patch;
   content: string;
   editorTheme: string;
   options: ConflictViewerOptions;
 }
 
 export class ConflictViewer extends React.PureComponent<ConflictViewerProps, {}> {
-  divEditor: React.RefObject<HTMLDivElement>;
+  divEditor: React.RefObject<HTMLDivElement | null>;
   editor: any;
   viewZoneIds: number[];
   overlayWidgets: any[];
@@ -56,20 +52,22 @@ export class ConflictViewer extends React.PureComponent<ConflictViewerProps, {}>
 
   componentDidMount() {
     this.conflicts = findConflictHunks(this.props.content.toString());
-    console.log(this.conflicts);
     this.setUpEditor();
   }
 
   componentDidUpdate(prevProps: ConflictViewerProps) {
+    // The editor is created once Monaco is loaded
+    if (!this.editor) {
+      return;
+    }
     // Only load if the patch has changed
     if (this.props.patch !== prevProps.patch || this.props.content !== prevProps.content) {
       const scrollTop = arePatchesSimilar(prevProps.patch, this.props.patch) ? this.editor.getScrollTop() : 0;
       this.conflicts = findConflictHunks(this.props.content.toString());
-      console.log(this.conflicts);
       this.updateEditor(scrollTop);
     }
     if (this.props.editorTheme !== prevProps.editorTheme) {
-      monaco.editor.setTheme(this.props.editorTheme); 
+      monaco.editor.setTheme(this.props.editorTheme);
     }
     if (this.props.options !== prevProps.options) {
       this.editor.updateOptions(this.props.options);
@@ -83,7 +81,7 @@ export class ConflictViewer extends React.PureComponent<ConflictViewerProps, {}>
   }
 
   handleOpenInEditor() {
-    openInEditor(this.props.patch.newFile().path());
+    openInEditor(this.props.patch.newFile.path);
   }
 
   handleResolve() {
@@ -102,7 +100,8 @@ export class ConflictViewer extends React.PureComponent<ConflictViewerProps, {}>
     }
   }
 
-  setUpEditor() {
+  async setUpEditor() {
+    monaco = await loadMonaco();
     if (this.divEditor.current) {
       const options = {
         theme: this.props.editorTheme,
@@ -112,8 +111,8 @@ export class ConflictViewer extends React.PureComponent<ConflictViewerProps, {}>
           enabled: false
         },
         ...this.props.options
-      }
-      this.editor = monaco.editor.create(this.divEditor.current, options)
+      };
+      this.editor = monaco.editor.create(this.divEditor.current, options);
       this.updateEditor(0);
     }
   }
@@ -125,7 +124,7 @@ export class ConflictViewer extends React.PureComponent<ConflictViewerProps, {}>
     this.resetEditor();
     // Update models
     this.editor.setValue(this.props.content);
-    this.createConflictWidgets(); 
+    this.createConflictWidgets();
     // Scroll
     this.editor.setScrollTop(scrollTop);
     // Show
@@ -135,13 +134,13 @@ export class ConflictViewer extends React.PureComponent<ConflictViewerProps, {}>
   resetEditor() {
     // Reset view zones
     this.editor.changeViewZones((changeAccessor: any) => {
-      for (let viewZoneId of this.viewZoneIds) {
+      for (const viewZoneId of this.viewZoneIds) {
         changeAccessor.removeZone(viewZoneId);
       }
     });
     this.viewZoneIds = [];
     // Reset overlay widgets
-    for (let overlayWidget of this.overlayWidgets) {
+    for (const overlayWidget of this.overlayWidgets) {
       this.editor.removeOverlayWidget(overlayWidget);
     }
     this.overlayWidgets = [];
@@ -189,14 +188,14 @@ export class ConflictViewer extends React.PureComponent<ConflictViewerProps, {}>
     this.decorations= this.editor.deltaDecorations(this.decorations, decorations);
     // Create widgets
     const overlayWidgets: any[] = [];
-    for (let i = 0; i < this.conflicts.length; ++i) { 
+    for (let i = 0; i < this.conflicts.length; ++i) {
       const id = `conflict.${this.overlayWidgets.length}`;
       const overlayNode = document.createElement('div');
       overlayNode.classList.add('conflict-widget');
 
       const contentNode = document.createElement('div');
       const textNode = document.createElement('p');
-      textNode.textContent = `Conflict`;
+      textNode.textContent = 'Conflict';
       contentNode.appendChild(textNode);
 
       const buttonsNode = document.createElement('div');
@@ -237,10 +236,10 @@ export class ConflictViewer extends React.PureComponent<ConflictViewerProps, {}>
           heightInLines: 2,
           domNode: document.createElement('div'),
           onDomNodeTop: (top: number) => {
-            overlayWidget.getDomNode().style.top = top + "px";
+            overlayWidget.getDomNode().style.top = top + 'px';
           },
           onComputedHeight: (height: number) => {
-            overlayWidget.getDomNode().style.height = height + "px";
+            overlayWidget.getDomNode().style.height = height + 'px';
           }
         }));
       }
@@ -249,9 +248,9 @@ export class ConflictViewer extends React.PureComponent<ConflictViewerProps, {}>
 
   removeLines(linesToRemove: Set<number>) {
     const lines = this.props.content.split('\n');
-    const value = lines.filter((line, i) => !linesToRemove.has(i + 1)).join('\n');
-    const path = Path.join(this.props.repo.repo.workdir(), this.props.patch.newFile().path());
-    return new Promise((resolve, reject) => {
+    const value = lines.filter((_line, i) => !linesToRemove.has(i + 1)).join('\n');
+    const path = Path.join(this.props.repo.workdir, this.props.patch.newFile.path);
+    return new Promise<void>((resolve, reject) => {
       fs.writeFile(path, value, (error) => {
         if (!error) {
           resolve();
@@ -268,7 +267,7 @@ export class ConflictViewer extends React.PureComponent<ConflictViewerProps, {}>
         linesToRemove.add(i);
       }
     }
-    
+
     // Start line
     linesToRemove.add(conflict.start);
     // Incoming changes

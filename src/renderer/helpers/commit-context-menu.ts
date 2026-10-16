@@ -1,17 +1,17 @@
-import * as Git from 'nodegit';
-import { remote, clipboard } from 'electron';
-import { RepoWrapper, removeReferencePrefix } from './repo-wrapper';
+import { clipboard } from 'electron';
+import { RepoWrapper, ResetType, removeReferencePrefix, Commit } from './repo-wrapper';
 import { InputDialogHandler } from '../components/input-dialog';
+import { buildMenu, MenuItem } from './native';
 
-export function createCommitContextMenu(repo: RepoWrapper, 
-  commit: Git.Commit, 
-  onCreateBranch: (commit: Git.Commit) => void,
+export function createCommitContextMenu(repo: RepoWrapper,
+  commit: Commit,
+  onCreateBranch: (commit: Commit) => void,
   onOpenInputDialog: InputDialogHandler) {
   function openCreateTagDialog() {
     onOpenInputDialog('Create tag', 'Name', 'Create tag', (value) => repo.createTag(value, commit));
   }
 
-  const template: Electron.MenuItemConstructorOptions[] = [
+  const template: MenuItem[] = [
     {
       label: 'Create branch here',
       click: () => onCreateBranch(commit)
@@ -28,15 +28,15 @@ export function createCommitContextMenu(repo: RepoWrapper,
         submenu: [
           {
             label: 'Soft',
-            click: () => repo.reset(commit, Git.Reset.TYPE.SOFT)
+            click: () => repo.reset(commit, ResetType.Soft)
           },
           {
             label: 'Mixed',
-            click: () => repo.reset(commit, Git.Reset.TYPE.MIXED)
+            click: () => repo.reset(commit, ResetType.Mixed)
           },
           {
             label: 'Hard',
-            click: () => repo.reset(commit, Git.Reset.TYPE.HARD)
+            click: () => repo.reset(commit, ResetType.Hard)
           }
         ]
       }
@@ -62,5 +62,5 @@ export function createCommitContextMenu(repo: RepoWrapper,
       click: openCreateTagDialog
     }
   );
-  return remote.Menu.buildFromTemplate(template);
+  return buildMenu(template);
 }

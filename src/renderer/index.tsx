@@ -1,17 +1,18 @@
 import { ipcRenderer } from 'electron';
 import * as React from 'react';
-import * as ReactDOM from 'react-dom';
-import * as unhandled from 'electron-unhandled';
+import { createRoot } from 'react-dom/client';
 import { App } from './components/app';
 
 let app: App;
 
-function setAppRef(a: App) {
-  app = a;
+function setAppRef(a: App | null) {
+  if (a) {
+    app = a;
+  }
 }
 
 function render() {
-  ReactDOM.render(<App ref={setAppRef} />, document.getElementById('container'));
+  createRoot(document.getElementById('container')!).render(<App ref={setAppRef} />);
 }
 
 render();
@@ -46,13 +47,19 @@ ipcRenderer.on('preferences', () => {
 
 function handleError(e: any) {
   // This was necessary for node-watch, is it still necessary for chokidar?
-  if (e.code === 'ENOTDIR' || e.code === 'ENOENT') {
+  if (e && (e.code === 'ENOTDIR' || e.code === 'ENOENT')) {
     console.log(e);
   } else {
     console.error(e);
   }
 }
 
-unhandled({
-  logger: handleError 
+window.addEventListener('error', (event) => {
+  event.preventDefault();
+  handleError(event.error || new Error(event.message));
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+  event.preventDefault();
+  handleError(event.reason);
 });

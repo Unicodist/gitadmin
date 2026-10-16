@@ -1,30 +1,41 @@
 import * as Path from 'path';
-import * as fs from 'fs'
-import * as Git from 'nodegit';
-import ignore from 'ignore'
+import * as fs from 'fs';
+import ignore, { Ignore } from 'ignore';
 import { CommitGraph } from './commit-graph';
 import { Field, Settings } from '../../shared/settings';
 import { NotificationType } from '../components/notification-item';
+import { git, gitBuffer } from './git/runner';
+import { Commit, DiffFile, DiffLine, Hunk, Patch, PatchStatus, Reference, Stash } from './git/model';
+import { COMMIT_FORMAT, DiffEntry, REFERENCE_FORMAT, parseCommits, parseDiffSummary, parseHunks, parseReferences } from './git/parsers';
+import { ApplyDirection, buildPartialPatch } from './git/partial-patch';
 
+export { Commit, DiffFile, DiffLine, Hunk, Patch, PatchStatus, Reference, Stash } from './git/model';
+
+// Accepts a working directory or a .git directory (the format used by older versions of the app)
 export function getRepoName(path: string) {
-  return Path.parse(Path.dirname(path)).name;
+  const parsed = Path.parse(path.replace(/[\\/]+$/, ''));
+  return parsed.base === '.git' ? Path.basename(parsed.dir) : parsed.base;
 }
 
 export function shortenSha(sha: string) {
-  return sha.substr(0, 6);
+  return sha.substring(0, 6);
 }
 
 export function removeReferencePrefix(name: string) {
-  return name.substr(name.indexOf('/', name.indexOf('/') + 1) + 1);
+  return name.substring(name.indexOf('/', name.indexOf('/') + 1) + 1);
 }
 
-const diffOptions = {
-  flags: Git.Diff.OPTION.INCLUDE_UNTRACKED | 
-  Git.Diff.OPTION.RECURSE_UNTRACKED_DIRS
-}
-
-const findSimilarOptions = {
-  flags: Git.Diff.FIND.RENAMES | Git.Diff.FIND.COPIES | Git.Diff.FIND.FOR_UNTRACKED
+// Default message of a merge commit, as git writes it
+export function getMergeMessage(referenceName: string) {
+  const reference = new Reference(referenceName, '', '');
+  if (reference.isBranch()) {
+    return `Merge branch '${reference.shorthand()}'`;
+  } else if (reference.isRemote()) {
+    return `Merge remote-tracking branch '${reference.shorthand()}'`;
+  } else if (reference.isTag()) {
+    return `Merge tag '${reference.shorthand()}'`;
+  }
+  return `Merge commit '${referenceName}'`;
 }
 
 export enum PatchType {
@@ -41,58 +52,92 @@ export enum RepoState {
   Revert
 }
 
-export class Stash {
-  index: number;
-  commit: Git.Commit;
-
-  constructor(index: number, commit: Git.Commit) {
-    this.index = index;
-    this.commit = commit;
-  }
+export enum ResetType {
+  Soft = 'soft',
+  Mixed = 'mixed',
+  Hard = 'hard'
 }
 
-export class RepoWrapper {
-  repo: Git.Repository;
-  path: string;
+export interface RepoLocation {
+  workdir: string;
+  gitDir: string;
+}
+
+export interface Identity {
   name: string;
-  commits: Git.Commit[];
-  shaToCommit: Map<string, Git.Commit>;
+  email: string;
+}
+
+export interface RepoWrapperOptions {
+  // Identity used for new commits, null to use the git configuration
+  getIdentity?: () => Identity | null;
+}
+
+function getIdentityFromSettings(): Identity | null {
+  const name = Settings.get(Field.Name);
+  const email = Settings.get(Field.Email);
+  return name && email ? { name, email } : null;
+}
+
+function errorMessage(e: unknown) {
+  return e instanceof Error ? e.message : String(e);
+}
+
+const DIFF_OPTIONS = ['--no-color', '--no-ext-diff', '--no-textconv'];
+const SUMMARY_OPTIONS = ['--raw', '--numstat', '-z', '--no-abbrev', '-M', '-C'];
+
+export class RepoWrapper {
+  path: string; // Path of the .git directory
+  workdir: string;
+  name: string;
+  commits: Commit[];
+  shaToCommit: Map<string, Commit>;
   shaToIndex: Map<string, number>;
-  references: Map<string, Git.Reference>;
+  references: Map<string, Reference>;
   shaToReferences: Map<string, string[]>;
   stashes: Map<string, Stash>;
-  tags: Map<string, Git.Tag>; // Annotated tags
   parents: Map<string, string[]>;
   children: Map<string, string[]>;
-  head: Git.Reference | null;
-  headCommit: Git.Commit | null;
+  head: Reference | null;
+  headCommit: Commit | null;
   graph: CommitGraph;
-  unstagedPatches: Git.ConvenientPatch[];
-  stagedPatches: Git.ConvenientPatch[];
+  unstagedPatches: Patch[];
+  stagedPatches: Patch[];
   onNotification: (message: string, type: NotificationType) => void;
   // Internals
   updateCommitsPromise: Promise<void>; // Used to queue commit updates
-  ig: any;
+  ig: Ignore;
+  headName: string | null;
+  headSha: string | null;
+  getIdentity: () => Identity | null;
 
-  constructor(repo: Git.Repository, onNotification: (message: string, type: NotificationType) => void) {
-    this.repo = repo;
-    this.path = this.repo.path(); 
-    this.name = getRepoName(this.path);
+  constructor(location: RepoLocation, onNotification: (message: string, type: NotificationType) => void, options: RepoWrapperOptions = {}) {
+    this.path = location.gitDir;
+    this.workdir = location.workdir;
+    this.name = getRepoName(this.workdir);
     this.commits = [];
-    this.shaToCommit = new Map<string, Git.Commit>();
+    this.shaToCommit = new Map<string, Commit>();
     this.shaToIndex = new Map<string, number>();
-    this.references = new Map<string, Git.Reference>();
+    this.references = new Map<string, Reference>();
     this.shaToReferences = new Map<string, string[]>();
     this.stashes = new Map<string, Stash>();
-    this.tags = new Map<string, Git.Tag>();
     this.parents = new Map<string, string[]>();
     this.children = new Map<string, string[]>();
+    this.head = null;
+    this.headCommit = null;
     this.graph = new CommitGraph();
     this.unstagedPatches = [];
     this.stagedPatches = [];
     this.onNotification = onNotification;
-    this.updateCommitsPromise = new Promise<void>((resolve) => resolve());
+    this.updateCommitsPromise = Promise.resolve();
     this.ig = ignore();
+    this.headName = null;
+    this.headSha = null;
+    this.getIdentity = options.getIdentity || getIdentityFromSettings;
+  }
+
+  git(args: string[], options: Parameters<typeof git>[2] = {}) {
+    return git(args, this.workdir, options);
   }
 
   async init() {
@@ -112,24 +157,23 @@ export class RepoWrapper {
   async updateCommits() {
     const referencesToUpdate = await this.updateReferences();
     const stashesToUpdate = await this.updateStashes();
+    await this.readHead();
     const newCommits = await this.getNewCommits(referencesToUpdate, stashesToUpdate);
-    await this.updateTags();
     this.updateShaToReferences();
     this.getParents(newCommits);
     this.removeUnreachableCommits();
-    await this.hideStashSecondParents(stashesToUpdate);
     this.sortCommits();
   }
 
   async updateReferences() {
     const references = await this.getReferences();
-    const referencesToUpdate: string[] = [];
-    const newReferences = new Map<string, Git.Reference>();
-    for (let reference of references) {
+    const referencesToUpdate: Reference[] = [];
+    const newReferences = new Map<string, Reference>();
+    for (const reference of references) {
       const name = reference.name();
-      const commitSha = reference.target().tostrS();
-      if (!this.references.has(name) || this.references.get(name)!.target().tostrS() !== commitSha) {
-        referencesToUpdate.push(name);
+      const previous = this.references.get(name);
+      if (!previous || previous.commitId !== reference.commitId) {
+        referencesToUpdate.push(reference);
       }
       newReferences.set(name, reference);
     }
@@ -140,7 +184,7 @@ export class RepoWrapper {
   async updateStashes() {
     const stashes = await this.getStashes();
     const stashesToUpdate: Stash[] = [];
-    for (let [sha, stash] of stashes) {
+    for (const [sha, stash] of stashes) {
       if (!this.stashes.has(sha)) {
         stashesToUpdate.push(stash);
       }
@@ -149,19 +193,10 @@ export class RepoWrapper {
     return stashesToUpdate;
   }
 
-  async updateTags() {
-    this.tags = new Map(await Promise.all([...this.references.values()]
-      .filter((reference) => reference.isTag() && !this.shaToCommit.has(reference.target().tostrS()))
-      .map(async (reference) =>  
-        [reference.name(), await this.repo.getTag(reference.target())] as [string, Git.Tag])));
-  }
-
   updateShaToReferences() {
     this.shaToReferences.clear();
-    for (let [name, reference] of this.references) {
-      const commitSha = this.tags.has(name) ?
-        this.tags.get(name)!.targetId().tostrS() :
-        reference.target().tostrS();
+    for (const [name, reference] of this.references) {
+      const commitSha = reference.commitId;
       if (!this.shaToReferences.has(commitSha)) {
         this.shaToReferences.set(commitSha, []);
       }
@@ -169,39 +204,52 @@ export class RepoWrapper {
     }
   }
 
-  async getNewCommits(references: string[], stashes: Stash[]) {
-    const walker = Git.Revwalk.create(this.repo);
-    // Set the reference commits as start of the walk
-    for (let name of references) {
-      walker.pushRef(name); 
+  async getNewCommits(references: Reference[], stashes: Stash[]) {
+    // Start from the updated references, the parents of the new stashes, and a detached head
+    const tips = new Set<string>(references.map((reference) => reference.commitId));
+    for (const stash of stashes) {
+      tips.add(stash.commit.parentIds[0]);
     }
-    // Set the stash commits as start of the walk
-    for (let stash of stashes) {
-      walker.push(stash.commit.id());
+    if (this.headSha && !this.shaToCommit.has(this.headSha)) {
+      tips.add(this.headSha);
     }
-    // Prevent from retrieving a commit already loaded
-    for (let commit of this.commits) {
-      walker.hide(commit.id());
+    const newCommits: Commit[] = [];
+    if (tips.size > 0) {
+      // Prevent from retrieving commits already loaded: hiding the commits
+      // without loaded children hides all their ancestors
+      const hidden = this.commits
+        .filter((commit) => this.children.get(commit.sha())!.length === 0)
+        .map((commit) => `^${commit.sha()}`);
+      const output = await this.git(['log', '-z', `--format=${COMMIT_FORMAT}`, '--ignore-missing', '--stdin'], {
+        stdin: [...tips, ...hidden].join('\n') + '\n'
+      });
+      newCommits.push(...parseCommits(output).filter((commit) => !this.shaToCommit.has(commit.sha())));
     }
-    // Retrieve new commits
-    const newCommits = await walker.getCommitsUntil(() => true);
-    for (let commit of newCommits) {
+    // Stash commits are only linked to the commit they were created on
+    for (const stash of stashes) {
+      if (!this.shaToCommit.has(stash.commit.sha())) {
+        newCommits.push(stash.commit);
+      }
+    }
+    for (const commit of newCommits) {
       this.commits.push(commit);
       this.shaToCommit.set(commit.sha(), commit);
     }
     return newCommits;
   }
 
-  getParents(commits: Git.Commit[]) {
-    for (let commit of commits) {
+  getParents(commits: Commit[]) {
+    for (const commit of commits) {
       this.children.set(commit.sha(), []);
     }
-    for (let commit of commits) {
+    for (const commit of commits) {
       const commitSha = commit.sha();
-      const parentShas = commit.parents().map(oid => oid.tostrS());
+      const parentShas = this.stashes.has(commitSha) ?
+        commit.parentIds.slice(0, 1) :
+        commit.parentIds.filter((parentSha) => this.shaToCommit.has(parentSha)); // Shallow clones
       this.parents.set(commitSha, parentShas);
       // Update children
-      for (let parentSha of parentShas) {
+      for (const parentSha of parentShas) {
         this.children.get(parentSha)!.push(commitSha);
       }
     }
@@ -209,52 +257,42 @@ export class RepoWrapper {
 
   removeUnreachableCommits() {
     // Find unreachable commits by doing a DFS
-    const alreadyAdded = new Map<string, boolean>();
-    const frontier: Git.Commit[] = [
-      ...this.getReferenceCommits(), 
-      ...Array.from(this.stashes.values(), (stash: Stash) => stash.commit)
+    const alreadyAdded = new Set<string>();
+    const frontier: string[] = [
+      ...Array.from(this.references.values(), (reference) => reference.commitId),
+      ...this.stashes.keys()
     ];
-    for (let commit of frontier) {
-      alreadyAdded.set(commit.sha(), true);
+    if (this.headSha) {
+      frontier.push(this.headSha);
+    }
+    for (const sha of frontier) {
+      alreadyAdded.add(sha);
     }
     while (frontier.length > 0) {
-      const commit = frontier.pop()!;
-      const commitSha = commit.sha();
-      for (let parentSha of this.parents.get(commitSha)!) {
-        if (!alreadyAdded.get(parentSha)) {
-          alreadyAdded.set(parentSha, true);
-          frontier.push(this.shaToCommit.get(parentSha)!);
+      const commitSha = frontier.pop()!;
+      for (const parentSha of this.parents.get(commitSha) || []) {
+        if (!alreadyAdded.has(parentSha)) {
+          alreadyAdded.add(parentSha);
+          frontier.push(parentSha);
         }
       }
     }
-    var commitsToRemove: Git.Commit[] = [];
-    for (let commit of this.commits) {
-      if (!alreadyAdded.has(commit.sha())) {
-        commitsToRemove.push(commit);
-      }
-    }
-    // Remove them
-    for (let commit of commitsToRemove) {
+    const commitsToRemove = this.commits.filter((commit) => !alreadyAdded.has(commit.sha()));
+    for (const commit of commitsToRemove) {
       this.removeCommit(commit);
     }
   }
 
-  async hideStashSecondParents(stashes: Stash[]) {
-    // Hide the second parent of stash commits
-    const parents = await Promise.all(Array.from(stashes.values(), (stash) => stash.commit.parent(1)));
-    parents.map((parent) => this.removeCommit(parent));
-  }
-
-  removeCommit(commit: Git.Commit) {
+  removeCommit(commit: Commit) {
     const commitSha = commit.sha();
     this.commits.splice(this.commits.indexOf(this.shaToCommit.get(commitSha)!), 1); // TODO: batch removal or update shaToIndex before removal
     this.shaToCommit.delete(commitSha);
-    for (let parentSha of this.parents.get(commitSha)!) {
+    for (const parentSha of this.parents.get(commitSha)!) {
       const parentChildren = this.children.get(parentSha)!;
       parentChildren.splice(parentChildren.indexOf(commitSha), 1);
     }
     this.parents.delete(commitSha);
-    for (let childSha of this.children.get(commitSha)!) {
+    for (const childSha of this.children.get(commitSha)!) {
       const childParents = this.parents.get(childSha)!;
       childParents.splice(childParents.indexOf(commitSha), 1);
     }
@@ -262,41 +300,53 @@ export class RepoWrapper {
   }
 
   sortCommits() {
-    const dfs = (commit: Git.Commit) => {
-      const commitSha = commit.sha();
-      if (alreadySeen.get(commitSha)) {
-        return;
+    const sortedCommits: Commit[] = [];
+    const alreadySeen = new Set<string>();
+    // Iterative DFS, recursion overflows the stack on long histories
+    const dfs = (root: Commit) => {
+      const stack: [Commit, number][] = [[root, 0]];
+      alreadySeen.add(root.sha());
+      while (stack.length > 0) {
+        const top = stack[stack.length - 1];
+        const children = this.children.get(top[0].sha())!;
+        if (top[1] < children.length) {
+          const child = this.shaToCommit.get(children[top[1]])!;
+          top[1] += 1;
+          if (!alreadySeen.has(child.sha())) {
+            alreadySeen.add(child.sha());
+            stack.push([child, 0]);
+          }
+        } else {
+          sortedCommits.push(top[0]);
+          stack.pop();
+        }
       }
-      alreadySeen.set(commitSha, true);
-      for (let childSha of this.children.get(commitSha)!) {
-        dfs(this.shaToCommit.get(childSha)!);
-      }
-      sortedCommits.push(commit);
-    }
+    };
 
     // Sort the commits by date (from newer to older)
-    const commitsWithTime = this.commits.map((commit) => [commit.date().valueOf(), commit] as [number, Git.Commit]);
-    commitsWithTime.sort((lhs, rhs) => rhs[0] - lhs[0]);
-    this.commits = commitsWithTime.map(([time, commit]) => commit);
+    this.commits.sort((lhs, rhs) => rhs.date().valueOf() - lhs.date().valueOf());
     // Topological sort (from parent to children)
-    const sortedCommits: Git.Commit[] = [];
-    const alreadySeen = new Map<string, boolean>();
-    for (let commit of this.commits) {
-      dfs(commit);
+    for (const commit of this.commits) {
+      if (!alreadySeen.has(commit.sha())) {
+        dfs(commit);
+      }
     }
     this.commits = sortedCommits;
     // Update shaToIndex
     this.shaToIndex = new Map(this.commits.map((commit, i) => [commit.sha(), i] as [string, number]));
   }
 
+  async readHead() {
+    const name = (await this.git(['symbolic-ref', '-q', 'HEAD'], { okExitCodes: [1] })).trim();
+    const sha = (await this.git(['rev-parse', '-q', '--verify', 'HEAD^{commit}'], { okExitCodes: [1] })).trim();
+    this.headName = name || null;
+    this.headSha = sha || null;
+  }
+
   async updateHead() {
-    try  {
-      // Check what happens when HEAD is detached
-      this.head = await this.repo.head();
-    } catch (e) {
-      this.head = null;
-    }
-    this.headCommit = await this.repo.getHeadCommit();
+    await this.readHead();
+    this.head = this.headName ? this.references.get(this.headName) || null : null;
+    this.headCommit = this.headSha ? this.shaToCommit.get(this.headSha) || null : null;
   }
 
   updateGraph() {
@@ -310,432 +360,456 @@ export class RepoWrapper {
 
   // Repo creation
 
+  static async open(path: string): Promise<RepoLocation> {
+    path = Path.resolve(path);
+    let gitDir = (await git(['rev-parse', '--absolute-git-dir'], path)).trim();
+    const insideGitDir = (await git(['rev-parse', '--is-inside-git-dir'], path)).trim() === 'true';
+    const cwd = insideGitDir ? Path.dirname(gitDir) : path;
+    const workdir = (await git(['rev-parse', '--show-toplevel'], cwd)).trim();
+    if (!workdir) {
+      throw new Error('Bare repositories are not supported');
+    }
+    gitDir = (await git(['rev-parse', '--absolute-git-dir'], workdir)).trim();
+    return { workdir: Path.normalize(workdir), gitDir: Path.normalize(gitDir) };
+  }
+
   static async clone(url: string, path: string) {
-    const options = { 
-      fetchOpts: RepoWrapper.getCredentialsCallback()
-    };
-    return await Git.Clone.clone(url, path, options);
+    path = Path.resolve(path);
+    const parent = Path.dirname(path);
+    fs.mkdirSync(parent, { recursive: true });
+    await git(['clone', '--', url, path], parent);
+    return await RepoWrapper.open(path);
   }
 
   static async init(path: string) {
-    return await Git.Repository.init(path, 0);
-  }
-
-  static async open(path: string) {
-    return await Git.Repository.open(path);
+    path = Path.resolve(path);
+    fs.mkdirSync(path, { recursive: true });
+    await git(['init', '--quiet', '--', path], path);
+    return await RepoWrapper.open(path);
   }
 
   // State
 
   getState() {
-    switch (this.repo.state()) {
-      case Git.Repository.STATE.CHERRYPICK:
-        return RepoState.Cherrypick;
-      case Git.Repository.STATE.MERGE:
-        return RepoState.Merge;
-      case Git.Repository.STATE.REBASE:
-      case Git.Repository.STATE.REBASE_INTERACTIVE:
-      case Git.Repository.STATE.REBASE_MERGE:
-        return RepoState.Rebase;
-      case Git.Repository.STATE.REVERT:
-        return RepoState.Revert;
-      default:
-        return RepoState.Commit;
+    const exists = (name: string) => fs.existsSync(Path.join(this.path, name));
+    if (exists('rebase-merge') || exists('rebase-apply')) {
+      return RepoState.Rebase;
+    } else if (exists('MERGE_HEAD')) {
+      return RepoState.Merge;
+    } else if (exists('REVERT_HEAD')) {
+      return RepoState.Revert;
+    } else if (exists('CHERRY_PICK_HEAD')) {
+      return RepoState.Cherrypick;
+    } else {
+      return RepoState.Commit;
+    }
+  }
+
+  // Runs an operation and notifies the user if it fails
+  async tryRun<T>(failureMessage: string, operation: () => Promise<T>, successMessage?: string) {
+    try {
+      const result = await operation();
+      if (successMessage) {
+        this.onNotification(successMessage, NotificationType.Information);
+      }
+      return result;
+    } catch (e) {
+      this.onNotification(`${failureMessage}: ${errorMessage(e)}`, NotificationType.Error);
+      return null;
     }
   }
 
   // Head operations
 
-  async checkoutReference(reference: Git.Reference) {
-    try {
-      await this.repo.checkoutRef(reference);
-      this.onNotification(`Checkout successfully to ${reference.shorthand()}`, NotificationType.Information);
-    } catch(e) {
-      this.onNotification(`Unable to checkout to ${reference.shorthand()}: ${e.message}`, NotificationType.Error);
-    }
+  async checkoutReference(reference: Reference) {
+    const target = reference.isBranch() ? [reference.shorthand()] : ['--detach', reference.name()];
+    await this.tryRun(`Unable to checkout to ${reference.shorthand()}`,
+      () => this.git(['checkout', '--quiet', ...target, '--']),
+      `Checkout successfully to ${reference.shorthand()}`);
   }
 
-  async reset(target: Git.Commit, resetType: Git.Reset.TYPE) {
-    try {
-      const commit = await this.repo.getCommit(target); // We need to reload the commit otherwise "Repository and target commit's repository does not match" is thrown
-      await Git.Reset.reset(this.repo, commit, resetType, {});
-    } catch(e) {
-      this.onNotification(`Unable to reset to ${target.sha()}: ${e.message}`, NotificationType.Error);
-    }
+  async reset(target: Commit, resetType: ResetType) {
+    await this.tryRun(`Unable to reset to ${target.sha()}`,
+      () => this.git(['reset', '--quiet', `--${resetType}`, target.sha(), '--']));
   }
 
   // Index operations
 
+  createPatch(entry: DiffEntry, newId: string | null, loadDiff: (entry: DiffEntry) => Promise<string>) {
+    const oldExists = entry.status !== PatchStatus.Added && entry.status !== PatchStatus.Untracked;
+    const newExists = entry.status !== PatchStatus.Deleted;
+    return new Patch(
+      entry.status,
+      { path: entry.oldPath, id: entry.oldId, mode: entry.oldMode, exists: oldExists },
+      { path: entry.newPath, id: newId, mode: entry.newMode, exists: newExists },
+      entry.binary,
+      async () => parseHunks(await loadDiff(entry))
+    );
+  }
+
   async getUnstagedPatches() {
-    const unstagedDiff = await Git.Diff.indexToWorkdir(this.repo, undefined, diffOptions);
-    await unstagedDiff.findSimilar(findSimilarOptions);
-    return await unstagedDiff.patches();
+    const summary = await this.git(['diff', ...SUMMARY_OPTIONS]);
+    const entries = parseDiffSummary(summary);
+    // Untracked files
+    const untracked = (await this.git(['ls-files', '--others', '--exclude-standard', '-z']))
+      .split('\0')
+      .filter((path) => path.length > 0);
+    for (const path of untracked) {
+      entries.push({
+        status: PatchStatus.Untracked,
+        oldPath: path,
+        newPath: path,
+        oldMode: '000000',
+        newMode: '100644',
+        oldId: null,
+        newId: null,
+        binary: false
+      });
+    }
+    // The working directory side has no id, hash the files so that the patches can be compared
+    const toHash = entries.filter((entry) => entry.status !== PatchStatus.Deleted &&
+      entry.status !== PatchStatus.Conflicted && !entry.newPath.includes('\n'));
+    const ids = new Map<string, string>();
+    if (toHash.length > 0) {
+      try {
+        const output = await this.git(['hash-object', '--stdin-paths'], {
+          stdin: toHash.map((entry) => entry.newPath).join('\n') + '\n'
+        });
+        output.trim().split('\n').forEach((id, i) => ids.set(toHash[i].newPath, id));
+      } catch (e) {
+        // A file may have been removed in the meantime, the patches will be reloaded
+      }
+    }
+    return entries.map((entry) => this.createPatch(entry, ids.get(entry.newPath) || null, (entry) => {
+      if (entry.status === PatchStatus.Untracked) {
+        return this.git(['diff', ...DIFF_OPTIONS, '--no-index', '--', '/dev/null', entry.newPath], { okExitCodes: [1] });
+      }
+      return this.git(['diff', ...DIFF_OPTIONS, '-U3', '--', entry.newPath]);
+    }));
   }
 
   async getStagedPatches() {
-    const headCommit = await this.repo.getHeadCommit(); // Retrieve the head
-    const oldTree = headCommit ? await headCommit.getTree() : undefined;
-    const stagedDiff = await Git.Diff.treeToIndex(this.repo, oldTree, undefined, diffOptions);
-    await stagedDiff.findSimilar(findSimilarOptions);
-    return await stagedDiff.patches();
+    const summary = await this.git(['diff', '--cached', ...SUMMARY_OPTIONS]);
+    // Conflicts are not staged, they are listed with the unstaged patches
+    const entries = parseDiffSummary(summary).filter((entry) => entry.status !== PatchStatus.Conflicted);
+    return entries.map((entry) => this.createPatch(entry, entry.newId, (entry) =>
+      this.git(['diff', '--cached', ...DIFF_OPTIONS, '-M', '-C', '-U3', '--', ...new Set([entry.oldPath, entry.newPath])])));
   }
 
-  async stageLines(patch: Git.ConvenientPatch, lines: Git.DiffLine[]) {
-    // Does not work if the lines are from different hunks
-    const path = patch.newFile().path();
-    await this.repo.stageLines(path, lines, false);
-  }
-
-  async stageHunk(patch: Git.ConvenientPatch, hunk: Git.ConvenientHunk) {
-    const lines = await hunk.lines();
-    await this.stageLines(patch, lines);
-  }
-
-  async stagePatch(patch: Git.ConvenientPatch) {
-    const index = await this.repo.index();
-    if (patch.isDeleted()) {
-      await index.removeByPath(patch.newFile().path())
-      await index.write();
-    } else if (patch.isRenamed()) {
-      await index.removeByPath(patch.oldFile().path())
-      await index.addByPath(patch.newFile().path())
-      await index.write();
-    } else {
-      await index.addByPath(patch.newFile().path())
-      await index.write();
+  async applyPatch(patch: Patch, lines: DiffLine[], direction: ApplyDirection, applyArgs: string[]) {
+    const hunks = await patch.hunks();
+    let newFileMode: string | undefined;
+    if (direction === ApplyDirection.Forward && patch.isUntracked()) {
+      const stats = fs.statSync(Path.join(this.workdir, patch.newFile.path));
+      newFileMode = stats.mode & 0o111 ? '100755' : '100644';
+    }
+    const partialPatch = buildPartialPatch(hunks, new Set(lines), direction, {
+      oldPath: patch.isUntracked() ? patch.newFile.path : patch.oldFile.path,
+      newPath: patch.newFile.path,
+      newFileMode: newFileMode
+    });
+    if (partialPatch) {
+      await this.git(['apply', '--recount', '--whitespace=nowarn', ...applyArgs, '-'], { stdin: partialPatch });
     }
   }
 
-  async stageAll(patches: Git.ConvenientPatch[]) {
-    const index = await this.repo.index();
-    const paths = patches.map((patch) => patch.newFile().path());
-    // Does not work for renamed patches
-    await index.addAll(paths, Git.Index.ADD_OPTION.ADD_DEFAULT);
-    await index.write();
+  async stageLines(patch: Patch, lines: DiffLine[]) {
+    await this.tryRun('Unable to stage lines',
+      () => this.applyPatch(patch, lines, ApplyDirection.Forward, ['--cached']));
   }
 
-  async unstageLines(patch: Git.ConvenientPatch, lines: Git.DiffLine[]) {
-    // Does not work if the lines are from different hunks
-    const path = patch.newFile().path();
-    await this.repo.stageLines(path, lines, true);
+  async stageHunk(patch: Patch, hunk: Hunk) {
+    await this.stageLines(patch, hunk.lines);
   }
 
-  async unstageHunk(patch: Git.ConvenientPatch, hunk: Git.ConvenientHunk) {
-    const lines = await hunk.lines();
-    await this.unstageLines(patch, lines);
+  async stagePatch(patch: Patch) {
+    await this.stageAll([patch]);
   }
 
-  async unstagePatch(patch: Git.ConvenientPatch) {
-    if (this.headCommit) {
-      await Git.Reset.default(this.repo, this.headCommit, patch.newFile().path());
+  async stageAll(patches: Patch[]) {
+    const paths = new Set<string>();
+    for (const patch of patches) {
+      paths.add(patch.newFile.path);
       if (patch.isRenamed()) {
-        await Git.Reset.default(this.repo, this.headCommit, patch.oldFile().path());
+        paths.add(patch.oldFile.path);
       }
     }
-  }
-
-  async unstageAll(patches: Git.ConvenientPatch[]) {
-    if (this.headCommit) {
-      const paths = patches.map((patch) => patch.newFile().path());
-      await Git.Reset.default(this.repo, this.headCommit, paths);
+    if (paths.size > 0) {
+      await this.tryRun('Unable to stage', () => this.git(['add', '--all', '--', ...paths]));
     }
   }
 
-  async discardLines(patch: Git.ConvenientPatch, lines: Git.DiffLine[]) {
-    const path = patch.newFile().path();
-    await this.repo.discardLines(path, lines);
+  async unstageLines(patch: Patch, lines: DiffLine[]) {
+    await this.tryRun('Unable to unstage lines',
+      () => this.applyPatch(patch, lines, ApplyDirection.Reverse, ['--cached', '--reverse']));
   }
 
-  async discardHunk(patch: Git.ConvenientPatch, hunk: Git.ConvenientHunk) {
-    const lines = await hunk.lines();
-    await this.discardLines(patch, lines);
+  async unstageHunk(patch: Patch, hunk: Hunk) {
+    await this.unstageLines(patch, hunk.lines);
   }
 
-  async discardPatch(patch: Git.ConvenientPatch) {
-    if (patch.isUntracked()) {
-      // Remove the file
-      fs.unlink(Path.join(this.repo.workdir(), patch.newFile().path()), () => {});
-    } else if (this.headCommit) {
-      const path = patch.newFile().path();
-      await Git.Checkout.head(this.repo, {
-        baseline: await this.headCommit.getTree(),
-        checkoutStrategy: Git.Checkout.STRATEGY.FORCE,
-        paths: path
+  async unstagePatch(patch: Patch) {
+    await this.unstageAll([patch]);
+  }
+
+  async unstageAll(patches: Patch[]) {
+    const paths = new Set<string>();
+    for (const patch of patches) {
+      paths.add(patch.newFile.path);
+      if (patch.isRenamed()) {
+        paths.add(patch.oldFile.path);
+      }
+    }
+    if (paths.size > 0) {
+      await this.tryRun('Unable to unstage', async () => {
+        await this.readHead();
+        if (this.headSha) {
+          await this.git(['reset', '--quiet', 'HEAD', '--', ...paths]);
+        } else {
+          // Nothing is committed yet
+          await this.git(['rm', '--cached', '--quiet', '-r', '--', ...paths]);
+        }
       });
     }
   }
 
-  async commit(message: string) {
-    try {
-      const author = this.getSignature();
-      const index = await this.repo.index();
-      const oid = await index.writeTree();
-      const parent = this.headCommit ? [this.headCommit] : []; // The first commit has no parent
-      await this.repo.createCommit('HEAD', author, author, message, oid, parent);
-    } catch (e) {
-      this.onNotification(`Unable to commit: ${e.message}`, NotificationType.Error);
+  async discardLines(patch: Patch, lines: DiffLine[]) {
+    await this.tryRun('Unable to discard lines',
+      () => this.applyPatch(patch, lines, ApplyDirection.Reverse, ['--reverse']));
+  }
+
+  async discardHunk(patch: Patch, hunk: Hunk) {
+    await this.discardLines(patch, hunk.lines);
+  }
+
+  // Discards the unstaged changes of a file
+  async discardPatch(patch: Patch) {
+    await this.tryRun('Unable to discard changes', async () => {
+      if (patch.isUntracked()) {
+        await fs.promises.unlink(Path.join(this.workdir, patch.newFile.path));
+      } else {
+        await this.git(['checkout', '--quiet', '--', patch.newFile.path]);
+      }
+    });
+  }
+
+  getIdentityEnvironment(committerOnly = false) {
+    const identity = this.getIdentity();
+    if (!identity) {
+      return {};
     }
+    const committer = {
+      GIT_COMMITTER_NAME: identity.name,
+      GIT_COMMITTER_EMAIL: identity.email
+    };
+    return committerOnly ? committer : {
+      ...committer,
+      GIT_AUTHOR_NAME: identity.name,
+      GIT_AUTHOR_EMAIL: identity.email
+    };
+  }
+
+  async commit(message: string) {
+    // During a merge, git uses MERGE_HEAD to create the merge commit
+    await this.tryRun('Unable to commit', () => this.git(['commit', '--quiet', '--cleanup=whitespace', '-F', '-'], {
+      stdin: message,
+      env: this.getIdentityEnvironment()
+    }));
   }
 
   async amend(message: string) {
-    try {
-      if (this.headCommit) {
-        const index = await this.repo.index();
-        const oid = await index.writeTree();
-        this.headCommit.amend('HEAD', this.headCommit.author(), this.getSignature(), this.headCommit.messageEncoding(), message, oid);
-      } else {
-        throw Error('There is no commit to amend');
-      }
-    } catch (e) {
-      this.onNotification(`Unable to amend: ${e.message}`, NotificationType.Error);
-    }
+    await this.tryRun('Unable to amend', () => this.git(['commit', '--quiet', '--amend', '--cleanup=whitespace', '-F', '-'], {
+      stdin: message,
+      env: this.getIdentityEnvironment(true)
+    }));
   }
 
-  async cherrypick(commit: Git.Commit) {
-    try {
-      await Git.Cherrypick.cherrypick(this.repo, commit, new Git.CheckoutOptions());
-      await this.commit(commit.message());
-    } catch (e) {
-      this.onNotification(`Unable to cherrypick: ${e.message}`, NotificationType.Error);
-    }
+  mainlineArgs(commit: Commit) {
+    return commit.parentIds.length > 1 ? ['-m', '1'] : [];
   }
 
-  async revert(commit: Git.Commit) {
-    try {
-      await Git.Revert.revert(this.repo, commit);
-      await this.commit(`Revert "${commit.message()}"`);
-    } catch (e) {
-      this.onNotification(`Unable to cherrypick: ${e.message}`, NotificationType.Error);
-    }
+  async cherrypick(commit: Commit) {
+    await this.tryRun('Unable to cherrypick', () => this.git(['cherry-pick', ...this.mainlineArgs(commit), commit.sha()], {
+      env: this.getIdentityEnvironment(true)
+    }));
+  }
+
+  async revert(commit: Commit) {
+    await this.tryRun('Unable to revert', () => this.git(['revert', '--no-edit', ...this.mainlineArgs(commit), commit.sha()], {
+      env: this.getIdentityEnvironment()
+    }));
   }
 
   // Reference operations
 
   async getReferences() {
-    const references = await this.repo.getReferences(Git.Reference.TYPE.OID);
+    const output = await this.git(['for-each-ref', `--format=${REFERENCE_FORMAT}`]);
     // Filter stash
-    return references.filter((reference) => reference.name() !== 'refs/stash');
+    return parseReferences(output).filter((reference) => reference.name() !== 'refs/stash');
   }
 
   getReferenceCommits() {
-    return Array.from(this.references.entries(), ([name, reference]) => 
-      this.getReferenceCommit(name, reference));
+    return Array.from(this.references.values(), (reference) => this.getReferenceCommit(reference));
   }
 
-  getReferenceCommit(name: string, reference: Git.Reference) {
-    if (this.tags.has(name)) {
-      return this.shaToCommit.get(this.tags.get(name)!.targetId().tostrS())!;
-    } else {
-      return this.shaToCommit.get(reference.target().tostrS())!;
-    }
+  getReferenceCommit(reference: Reference) {
+    return this.shaToCommit.get(reference.commitId)!;
   }
 
-  async createBranch(name: string, commit: Git.Commit)  {
-    try {
-      return await this.repo.createBranch(name, commit, false);
-    } catch (e) {
-      this.onNotification(`Unable to create branch ${name}: ${e.message}`, NotificationType.Error);
-      return null;
-    }
+  async createBranch(name: string, commit: Commit) {
+    return await this.tryRun(`Unable to create branch ${name}`, async () => {
+      await this.git(['branch', '--', name, commit.sha()]);
+      return new Reference(`refs/heads/${name}`, commit.sha(), commit.sha());
+    });
   }
 
-  async createTag(name: string, commit: Git.Commit, message = '') {
-    try {
-      const object = await Git.Object.lookup(this.repo, commit.id(), Git.Object.TYPE.COMMIT);
-      await Git.Tag.createLightweight(this.repo, name, object, 0);
-    } catch (e) {
-      this.onNotification(`Unable to create tag ${name}: ${e.message}`, NotificationType.Error);
-    }
+  async createTag(name: string, commit: Commit) {
+    await this.tryRun(`Unable to create tag ${name}`, () => this.git(['tag', '--', name, commit.sha()]));
   }
 
-  async removeReference(reference: Git.Reference) {
-    try {
-      reference.delete()
-    } catch (e) {
-      this.onNotification(`Unable to remove reference ${name}: ${e.message}`, NotificationType.Error);
-    }
+  async removeReference(reference: Reference) {
+    await this.tryRun(`Unable to remove reference ${reference.shorthand()}`, () => {
+      if (reference.isBranch()) {
+        return this.git(['branch', '-D', '--', reference.shorthand()]);
+      } else if (reference.isTag()) {
+        return this.git(['tag', '-d', '--', reference.shorthand()]);
+      } else {
+        return this.git(['update-ref', '-d', reference.name()]);
+      }
+    });
   }
 
-  async renameReference(reference: Git.Reference, newShorthand: string) {
+  async renameReference(reference: Reference, newShorthand: string) {
     const oldName = reference.name();
-    const newName = oldName.substr(0, oldName.lastIndexOf(reference.shorthand())) + newShorthand;
-    try {
-      await reference.rename(newName, 0, `Rename ${oldName} to ${newName}`);
-    } catch (e) {
-      this.onNotification(`Unable to rename reference ${oldName} to ${newName}: ${e.message}`, NotificationType.Error);
-    }
+    const newName = oldName.substring(0, oldName.lastIndexOf(reference.shorthand())) + newShorthand;
+    await this.tryRun(`Unable to rename reference ${oldName} to ${newName}`, async () => {
+      if (reference.isBranch()) {
+        await this.git(['branch', '-m', '--', reference.shorthand(), newShorthand]);
+      } else {
+        await this.git(['check-ref-format', newName]);
+        await this.git(['update-ref', '--create-reflog', newName, reference.targetId, '']);
+        await this.git(['update-ref', '-d', oldName, reference.targetId]);
+      }
+    });
   }
 
+  // Merges the reference "from" into the current branch "to"
   async merge(to: string, from: string) {
-    try {
-      await this.repo.mergeBranches(to, from);
-      this.onNotification('Merge successfully', NotificationType.Information);
-    } catch (e) {
-      this.onNotification(`Unable to merge ${from} into ${to}: ${e.message}`, NotificationType.Error);
-    }
+    await this.tryRun(`Unable to merge ${from} into ${to}`, async () => {
+      await this.readHead();
+      if (this.headName !== to) {
+        throw new Error(`${to} is not the current branch`);
+      }
+      // The full reference name avoids ambiguities, but git would use it in the message
+      await this.git(['merge', '--no-edit', '-m', getMergeMessage(from), from], { env: this.getIdentityEnvironment() });
+    }, 'Merge successfully');
   }
 
   async getMergeHeads() {
-    const mergeHeads: string[] = [];
-    await this.repo.mergeheadForeach((mergeHead: Git.Oid) => {
-      mergeHeads.push(mergeHead.tostrS());
-      return 0;
-    });
-    return mergeHeads;
-  }
-
-  async getMergeMessage() {
-    return new Promise<string>((resolve, reject) => {
-      fs.readFile(Path.join(this.path, 'MERGE_MSG'), (error, data) => {
-        if (!error) {
-          resolve(data.toString().split('\n')[0]);
-        } else {
-          reject(error);
-        }
-      });
-    });
-  }
-
-  async finishMerge(message: string) {
     try {
-      const author = this.getSignature();
-      const index = await this.repo.index();
-      const oid = await index.writeTree();
-      const mergeHeads = await this.getMergeHeads();
-      if (this.headCommit === null) {
-        throw new Error('Head not valid');
-      }
-      if (mergeHeads.length === 0) {
-        throw new Error('No merge head found');
-      }
-      await this.repo.createCommit('HEAD', author, author, message, oid, [this.headCommit, ...mergeHeads]);
-      await this.repo.stateCleanup();
+      const content = await fs.promises.readFile(Path.join(this.path, 'MERGE_HEAD'));
+      return content.toString().split('\n').filter((line) => line.length > 0);
     } catch (e) {
-      this.onNotification(`Unable to merge: ${e.message}`, NotificationType.Error);
+      return [];
     }
   }
 
+  async getMergeMessage() {
+    const data = await fs.promises.readFile(Path.join(this.path, 'MERGE_MSG'));
+    return data.toString().split('\n')[0];
+  }
+
+  async finishMerge(message: string) {
+    if ((await this.getMergeHeads()).length === 0) {
+      this.onNotification('Unable to merge: No merge head found', NotificationType.Error);
+      return;
+    }
+    await this.commit(message);
+  }
+
   async abortMerge() {
-    if (this.repo.isMerging() && this.headCommit) {
-      await this.reset(this.headCommit, Git.Reset.TYPE.HARD);
+    if (this.getState() === RepoState.Merge) {
+      await this.tryRun('Unable to abort the merge', () => this.git(['merge', '--abort']));
     }
   }
 
   async fetchAll() {
-    try {
-      await this.repo.fetchAll(RepoWrapper.getCredentialsCallback());
-    } catch (e) {
-      this.onNotification(`Unable to fetch all: ${e.message}`, NotificationType.Error);
-    }
+    await this.tryRun('Unable to fetch all', () => this.git(['fetch', '--all', '--quiet']));
   }
 
   async pull(name: string) {
-    await this.merge(name, `origin/${name}`);
+    await this.merge(`refs/heads/${name}`, `refs/remotes/origin/${name}`);
   }
 
   async push() {
-    try {
-      const remote = await this.repo.getRemote('origin');
-      await remote.push([`${this.head}:${this.head}`], RepoWrapper.getCredentialsCallback())
-      this.onNotification('Pushed successfully', NotificationType.Information);
-    } catch (e) {
-      this.onNotification(`Unable to push: ${e.message}`, NotificationType.Error);
-    }
-  }
-
-  // Credentials
-
-  getSignature() {
-    try {
-      const name = Settings.get(Field.Name);
-      const email = Settings.get(Field.Email);
-      return Git.Signature.now(name, email);
-    } catch (e) {
-      this.onNotification('Unable to set an author for this commit. Please check you configure correctly your account in "Preferences".', NotificationType.Error);
-      throw e;
-    }
-  }
-
-  static getCredentialsCallback() {
-    return {
-      callbacks: {
-        credentials: (url: string, userName: string) => {
-          return Git.Cred.sshKeyFromAgent(userName);
-        }
+    await this.tryRun('Unable to push', async () => {
+      await this.readHead();
+      if (!this.headName) {
+        throw new Error('HEAD is not on a branch');
       }
-    }
+      await this.git(['push', '--quiet', 'origin', this.headName]);
+    }, 'Pushed successfully');
   }
 
   // Stash
 
   async getStashes() {
-    const oids: Git.Oid[] = [];
-    await Git.Stash.foreach(this.repo, (index: Git.Index, message: string, oid: Git.Oid) => {
-      oids.push(oid);
-    });
-    let commits = await Promise.all(oids.map((oid) => this.repo.getCommit(oid)));
-    return new Map<string, Stash>(commits.map((commit, index) => 
+    const output = await this.git(['stash', 'list', '-z', `--format=${COMMIT_FORMAT}`]);
+    return new Map<string, Stash>(parseCommits(output).map((commit, index) =>
       [commit.sha(), new Stash(index, commit)] as [string, Stash]));
   }
 
   async stash() {
-    try {
-      const stasher = this.getSignature();
-      const message = this.headCommit ? `${shortenSha(this.headCommit.sha())} ${this.headCommit.summary()}` : '';
-      await Git.Stash.save(this.repo, stasher, message, Git.Stash.FLAGS.DEFAULT);
-    } catch(e) {
-      this.onNotification(`Unable to stash: ${e.message}`, NotificationType.Error);
-    }
+    await this.tryRun('Unable to stash', () => this.git(['stash', 'push', '--quiet'], {
+      env: this.getIdentityEnvironment()
+    }));
   }
 
   async applyStash(index: number) {
-    try {
-      await Git.Stash.apply(this.repo, index);
-    } catch(e) {
-      this.onNotification(`Unable to apply stash: ${e.message}`, NotificationType.Error);
-    }
+    await this.tryRun('Unable to apply stash', () => this.git(['stash', 'apply', '--quiet', `stash@{${index}}`]));
   }
 
   async popStash(index = 0) {
-    try {
-      await Git.Stash.pop(this.repo, index);
-    } catch(e) {
-      this.onNotification(`Unable to pop stash: ${e.message}`, NotificationType.Error);
-    }
+    await this.tryRun('Unable to pop stash', () => this.git(['stash', 'pop', '--quiet', `stash@{${index}}`]));
   }
 
   async dropStash(index: number) {
-    try {
-      await Git.Stash.drop(this.repo, index);
-    } catch(e) {
-      this.onNotification(`Unable to drop stash: ${e.message}`, NotificationType.Error);
-    }
+    await this.tryRun('Unable to drop stash', () => this.git(['stash', 'drop', '--quiet', `stash@{${index}}`]));
   }
 
   // Ignore
 
   updateIgnore() {
-    const path = Path.join(this.path, '../.gitignore');
+    const path = Path.join(this.workdir, '.gitignore');
     if (fs.existsSync(path)) {
-      this.ig = ignore().add(fs.readFileSync(path).toString())
+      this.ig = ignore().add(fs.readFileSync(path).toString());
     }
   }
 
   isIgnored(path: string) {
     // .gitignore is never ignored
-    return path && path !== '.gitignore' && this.ig.ignores(path);
+    return path.length > 0 && path !== '.gitignore' && this.ig.ignores(path);
   }
 
   // Commit
 
-  async getPatches(commit: Git.Commit) {
-    const diffs = await commit.getDiff();
-    if (diffs.length > 0) {
-      const diff = diffs[0];
-      await diff.findSimilar(findSimilarOptions);
-      return await diff.patches();
-    } else {
-      return [];
+  async getPatches(commit: Commit) {
+    const parent = commit.parentIds.length > 0 ? [commit.parentIds[0]] : ['--root'];
+    const summary = await this.git(['diff-tree', '-r', '--no-commit-id', ...SUMMARY_OPTIONS, ...parent, commit.sha()]);
+    return parseDiffSummary(summary).map((entry) => this.createPatch(entry, entry.newId, (entry) =>
+      this.git(['diff-tree', '-p', '--no-commit-id', ...DIFF_OPTIONS, '-M', '-C', '-U3', ...parent, commit.sha(),
+        '--', ...new Set([entry.oldPath, entry.newPath])])));
+  }
+
+  // Content of a side of a patch, read from the object database or the working directory
+  async readFile(file: DiffFile) {
+    if (file.id) {
+      try {
+        return await gitBuffer(['cat-file', 'blob', file.id], this.workdir);
+      } catch (e) {
+        // The blob is not in the object database (working directory file)
+      }
     }
+    return await fs.promises.readFile(Path.join(this.workdir, file.path));
   }
 }

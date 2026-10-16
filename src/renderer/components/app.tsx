@@ -1,8 +1,7 @@
-import { remote } from 'electron';
 import * as React from 'react';
-import * as Git from 'nodegit';
 import { RepoDashboard } from './repo-dashboard';
-import { RepoWrapper } from '../helpers/repo-wrapper';
+import { RepoWrapper, RepoLocation, Commit } from '../helpers/repo-wrapper';
+import { showOpenDirectoryDialog } from '../helpers/native';
 import { NotificationQueue } from './notification-queue';
 import { WelcomeDashboard } from './welcome-dashboard';
 import { NotificationType } from './notification-item';
@@ -16,14 +15,14 @@ import { ThemeManager } from '../../shared/theme-manager';
 import { InputDialog } from './input-dialog';
 
 export interface AppState {
-  repos: RepoWrapper[]; 
+  repos: RepoWrapper[];
   editorTheme: string;
   patchViewerOptions: TextPatchViewerOptions;
-  modalWindow: JSX.Element | null;
+  modalWindow: React.JSX.Element | null;
 }
 
 export class App extends React.PureComponent<{}, AppState> {
-  notificationQueue: React.RefObject<NotificationQueue>;
+  notificationQueue: React.RefObject<NotificationQueue | null>;
   themeManager: ThemeManager;
 
   constructor(props: {}) {
@@ -96,19 +95,19 @@ export class App extends React.PureComponent<{}, AppState> {
     }
   }
 
-  addRepo(repo: Git.Repository) {
-    const repoState = new RepoWrapper(repo, this.showNotification);
+  addRepo(location: RepoLocation) {
+    const repoState = new RepoWrapper(location, this.showNotification);
     this.setState({
       repos: [repoState]
     });
     // Update settings
     const recentlyOpened: string[] = Settings.get(Field.RecentlyOpened, []);
     // Make sure that there is no duplicate
-    const iPath = recentlyOpened.indexOf(repoState.path);
+    const iPath = recentlyOpened.indexOf(repoState.workdir);
     if (iPath !== -1) {
       recentlyOpened.splice(iPath, 1);
     }
-    Settings.set(Field.RecentlyOpened, [repoState.path, ...recentlyOpened.slice(0, 2)]);
+    Settings.set(Field.RecentlyOpened, [repoState.workdir, ...recentlyOpened.slice(0, 2)]);
   }
 
   closeRepo(i: number) {
@@ -134,9 +133,9 @@ export class App extends React.PureComponent<{}, AppState> {
   // Modal components
 
   openCloneRepoDialog() {
-    const element = <CloneRepoDialog title='Clone a repo' 
-      onCloneRepo={this.cloneRepo} 
-      onClose={this.closeModalWindow} />
+    const element = <CloneRepoDialog title='Clone a repo'
+      onCloneRepo={this.cloneRepo}
+      onClose={this.closeModalWindow} />;
     this.setState({
       modalWindow: element
     });
@@ -144,35 +143,32 @@ export class App extends React.PureComponent<{}, AppState> {
 
   openInitRepoDialog() {
     const element = <InitRepoDialog title='Initialize a repo'
-      onInitRepo={this.initRepo} 
-      onClose={this.closeModalWindow} />
+      onInitRepo={this.initRepo}
+      onClose={this.closeModalWindow} />;
     this.setState({
       modalWindow: element
     });
   }
 
   openOpenRepoDialog() {
-    remote.dialog.showOpenDialog(remote.getCurrentWindow(),
-      {properties: ['openDirectory']}, 
-      (paths) => {
-        if (paths) {
-          this.openRepo(paths[0]);
-        }
+    showOpenDirectoryDialog().then((path) => {
+      if (path) {
+        this.openRepo(path);
       }
-    );
+    });
   }
 
   openPreferencesDialog() {
     const element = <PreferencesDialog title='Preferences'
-      onClose={this.closeModalWindow} 
+      onClose={this.closeModalWindow}
       onThemeUpdate={this.updateTheme}
-      onEditorPreferencesUpdate={this.updatePatchViewer} />
+      onEditorPreferencesUpdate={this.updatePatchViewer} />;
     this.setState({
       modalWindow: element
     });
   }
 
-  openCreateBranchDialog(commit: Git.Commit) {
+  openCreateBranchDialog(commit: Commit) {
     const element = <CreateBranchDialog title='Create a branch'
       repo={this.getCurrentRepo()}
       commit={commit}
@@ -184,11 +180,11 @@ export class App extends React.PureComponent<{}, AppState> {
 
   openInputDialog(title: string, label: string, button: string, onSubmit: (value: string) => void, defaultValue = '') {
     const element = <InputDialog title={title}
-      label={label} 
-      button={button} 
-      defaultValue={defaultValue} 
+      label={label}
+      button={button}
+      defaultValue={defaultValue}
       onSubmit={onSubmit}
-      onClose={this.closeModalWindow} />
+      onClose={this.closeModalWindow} />;
     this.setState({
       modalWindow: element
     });
@@ -202,12 +198,12 @@ export class App extends React.PureComponent<{}, AppState> {
 
   render() {
     const repoDashboards = this.state.repos.length === 0 ?
-      <WelcomeDashboard onRecentlyOpenedRepoClick={this.openRepo} 
+      <WelcomeDashboard onRecentlyOpenedRepoClick={this.openRepo}
         onOpenRepo={this.openOpenRepoDialog}
         onInitRepo={this.openInitRepoDialog}
         onCloneRepo={this.openCloneRepoDialog} /> :
-      this.state.repos.map((repo, i) => <RepoDashboard 
-        repo={repo} 
+      this.state.repos.map((repo, i) => <RepoDashboard
+        repo={repo}
         editorTheme={this.state.editorTheme}
         patchViewerOptions={this.state.patchViewerOptions}
         onRepoClose={() => this.closeRepo(i)}

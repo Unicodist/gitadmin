@@ -21,7 +21,7 @@ export class ThemeManager {
   }
 
   updateCssVariables() {
-    for (let key in this.theme.css) {
+    for (const key in this.theme.css) {
       document.body.style.setProperty(`--${key}`, this.theme.css[key]);
     }
   }

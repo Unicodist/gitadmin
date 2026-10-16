@@ -1,12 +1,12 @@
 import * as React from 'react';
 
-export interface SplitterProps { 
+export interface SplitterProps {
   onDrag: (offset: number) => void;
 }
 
 export class Splitter extends React.PureComponent<SplitterProps, {}> {
-  dragging: boolean; 
-  div: React.RefObject<HTMLDivElement>;
+  dragging: boolean;
+  div: React.RefObject<HTMLDivElement | null>;
 
   constructor(props: SplitterProps) {
     super(props);
@@ -27,7 +27,7 @@ export class Splitter extends React.PureComponent<SplitterProps, {}> {
     window.removeEventListener('mouseup', this.endDragging);
   }
 
-  startDragging(event: React.MouseEvent<HTMLDivElement>) {
+  startDragging(_event: React.MouseEvent<HTMLDivElement>) {
     this.dragging = true;
     document.documentElement.style.cursor = 'col-resize';
     document.documentElement.style.userSelect = 'none';
@@ -43,7 +43,7 @@ export class Splitter extends React.PureComponent<SplitterProps, {}> {
 
   endDragging() {
     this.dragging = false;
-    document.documentElement.style.removeProperty('cursor')
+    document.documentElement.style.removeProperty('cursor');
     document.documentElement.style.removeProperty('user-select');
   }
 

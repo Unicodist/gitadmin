@@ -1,7 +1,7 @@
-import {  Menu } from 'electron';
+import { Menu, MenuItemConstructorOptions } from 'electron';
 
 export function setMenu(mainWindow: Electron.BrowserWindow) {
-  const template = [
+  const template: MenuItemConstructorOptions[] = [
     {
       label: 'File',
       submenu: [
@@ -40,8 +40,8 @@ export function setMenu(mainWindow: Electron.BrowserWindow) {
       label: 'View',
       submenu: [
         {role: 'reload'},
-        {role: 'forcereload'},
-        {role: 'toggledevtools'},
+        {role: 'forceReload'},
+        {role: 'toggleDevTools'},
       ]
     },
   ];

@@ -41,7 +41,7 @@ class Preferences extends React.PureComponent<PreferencesProps, PreferencesState
       email: settings[Field.Email] || '',
       theme: settings[Field.Theme] || 'light',
       fontSize: settings[Field.FontSize] || 14
-    }
+    };
     // Maybe we should refactor that when there will be more fields
     this.handleNameChange = this.handleNameChange.bind(this);
     this.handleEmailChange = this.handleEmailChange.bind(this);
@@ -158,19 +158,19 @@ class Preferences extends React.PureComponent<PreferencesProps, PreferencesState
             <form onSubmit={this.handleSubmit}>
               <div>
                 <label htmlFor="name">Name:</label>
-                <input type="text" 
-                  id="name" 
-                  name="profile-name" 
-                  autoFocus={true} 
+                <input type="text"
+                  id="name"
+                  name="profile-name"
+                  autoFocus={true}
                   value={this.state.name}
                   onChange={this.handleNameChange} />
               </div>
               <div>
                 <label htmlFor="path">Email:</label>
-                <input type="text" 
-                  id="email" 
-                  name="profile-email" 
-                  value={this.state.email} 
+                <input type="text"
+                  id="email"
+                  name="profile-email"
+                  value={this.state.email}
                   onChange={this.handleEmailChange} />
               </div>
             </form>
@@ -195,9 +195,9 @@ class Preferences extends React.PureComponent<PreferencesProps, PreferencesState
             <form onSubmit={this.handleSubmit}>
               <div>
                 <label htmlFor="font-size">Font size:</label>
-                <input type="number" 
-                  id="font-size" 
-                  name="font-size" 
+                <input type="number"
+                  id="font-size"
+                  name="font-size"
                   value={this.state.fontSize}
                   onChange={this.handleFontSizeChange}/>
               </div>
