@@ -79,6 +79,8 @@ div.commit-list {
     color: var(--text-primary);
     white-space: nowrap;
     transition: background-color var(--duration-fast) var(--easing);
+    // The badges fold when the row is narrow, see reference-badge.less
+    container: commit-item / inline-size;
 
     &:hover {
       background-color: var(--hover);
@@ -93,18 +95,22 @@ div.commit-list {
     }
   }
 
-  // The badges shrink only when the summary has no room left, and leave it some
+  // The badges and the summary share the row, 60% for the badges when both are long, and each one
+  // takes the room that the other does not need
   .commit-badges {
     display: flex;
-    flex: 0 1 auto;
+    flex: 3 1 0;
     gap: var(--space-1);
     min-width: 0;
-    max-width: 60%;
+    max-width: max-content;
+    // Nothing spills over the summary when a wide graph leaves the row almost no room
+    overflow: hidden;
   }
 
   .commit-summary {
-    flex: 1 1 0;
+    flex: 2 1 0;
     min-width: 0;
+    max-width: max-content;
     overflow: hidden;
     text-overflow: ellipsis;
     line-height: var(--line-height);

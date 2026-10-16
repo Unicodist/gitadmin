@@ -203,3 +203,30 @@ test('keeps the commit list at 28px rows with badges and the keyboard navigation
   await expect(listbox).not.toBeFocused();
   expect(launched.pageErrors).toEqual([]);
 });
+
+test('folds the badges of the narrow rows into a pill', async () => {
+  const commitList = page.locator('.commit-list');
+  const pill = (summary: string) => commitList.locator('li', { hasText: summary }).locator('.folded-badges');
+  const badgeWidth = async (name: string) => {
+    return (await commitList.locator('.reference-badge', { hasText: new RegExp(`^${name}$`) }).boundingBox())!.width;
+  };
+
+  // The window opens at its smallest size, the rows keep the badge of the head or else their first one
+  await expect(pill('Add the engine')).toHaveText('+1');
+  await expect(pill('Add the engine')).toHaveAttribute('title', 'origin/main');
+  await expect(pill('Write the notes')).toHaveText('+2');
+  await expect(pill('Write the notes')).toHaveAttribute('title', 'origin/notes, v1.0');
+  expect(await badgeWidth('main')).toBeGreaterThan(40);
+  expect(await badgeWidth('origin/main')).toBeLessThanOrEqual(1);
+  // The folded names are still read with the row, the pill is not
+  await expect(pill('Write the notes')).toHaveAttribute('aria-hidden', 'true');
+  await expect(commitList.getByRole('option', { name: 'notes origin/notes v1.0 Write the notes' })).toHaveCount(1);
+
+  // A wide window has room for all the badges
+  await launched.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1280, 800));
+  await expect(pill('Write the notes')).toBeHidden();
+  await expect(pill('Add the engine')).toBeHidden();
+  await expect.poll(() => badgeWidth('origin/main')).toBeGreaterThan(40);
+  expect(await badgeWidth('v1.0')).toBeGreaterThan(40);
+  expect(launched.pageErrors).toEqual([]);
+});

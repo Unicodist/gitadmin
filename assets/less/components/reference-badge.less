@@ -5,10 +5,8 @@ div.commit-list {
   .commit-badge() {
     display: inline-flex;
     align-items: center;
-    flex: 0 1 auto;
     gap: var(--space-1);
     min-width: 0;
-    max-width: 180px;
     height: 20px;
     padding: 0 var(--space-2) 0 6px;
     border: 1px solid color-mix(in srgb, var(--branch-color) 50%, transparent);
@@ -25,8 +23,12 @@ div.commit-list {
     }
   }
 
+  // Equal shares of the room, each up to its own width: the short names stay whole and the long
+  // ones share what is left
   .reference-badge {
     .commit-badge();
+    flex: 1 1 0;
+    max-width: max-content;
 
     &:hover {
       background-color: color-mix(in srgb, var(--branch-color) 24%, var(--surface-1));
@@ -43,8 +45,10 @@ div.commit-list {
     }
   }
 
+  // The badge is at most 180px wide with its icon and its padding
   .reference-badge-name {
     min-width: 0;
+    max-width: 148px;
     overflow: hidden;
     text-overflow: ellipsis;
     line-height: var(--line-height);
@@ -53,5 +57,45 @@ div.commit-list {
   .stash-badge {
     .commit-badge();
     flex-shrink: 0;
+  }
+
+  // The +N pill of the folded badges, for narrow rows only
+  .folded-badges {
+    .commit-badge();
+    display: none;
+    flex-shrink: 0;
+    padding: 0 6px;
+  }
+
+  // A row folds its badges before the long names get under about 80px: two badges when the row has
+  // less than 280px beside the graph, three under 400px, four or more under 520px. It keeps the badge
+  // of the head, or else the first one, the others stay for the screen readers.
+  .fold-badges() {
+    &:has(> .reference-badge.head) > .reference-badge:not(.head),
+    &:not(:has(> .reference-badge.head)) > .reference-badge ~ .reference-badge {
+      .visually-hidden();
+    }
+
+    & > .folded-badges {
+      display: inline-flex;
+    }
+  }
+
+  @container commit-item (width < 280px) {
+    .commit-badges:has(> .reference-badge ~ .reference-badge) {
+      .fold-badges();
+    }
+  }
+
+  @container commit-item (width < 400px) {
+    .commit-badges:has(> .reference-badge ~ .reference-badge ~ .reference-badge) {
+      .fold-badges();
+    }
+  }
+
+  @container commit-item (width < 520px) {
+    .commit-badges:has(> .reference-badge ~ .reference-badge ~ .reference-badge ~ .reference-badge) {
+      .fold-badges();
+    }
   }
 }

@@ -50,11 +50,32 @@ export class CommitItem extends React.PureComponent<CommitItemProps, {}> {
     menu.popup();
   }
 
-  renderStashBadge() {
+  getBranchColorStyle() {
     const style: Record<string, string> = {};
     style['--branch-color'] = this.props.color;
+    return style;
+  }
+
+  // A narrow row keeps the badge of the head, or else the first one, and folds the others into a +N pill.
+  // They stay in the accessible name of the row, so the pill is only visual.
+  renderFoldedBadges() {
+    const references = this.props.references;
+    const head = this.props.head !== null ? this.props.head.name() : null;
+    const shown = head !== null && references.includes(head) ? head : references[0];
+    const folded = references.filter((name) => name !== shown).map((name) => this.props.repo.references.get(name)!.shorthand());
+    if (folded.length === 0) {
+      return null;
+    }
     return (
-      <span className='stash-badge' style={style} title={`stash@{${this.props.stash!.index}}`}>
+      <span className='folded-badges' aria-hidden='true' style={this.getBranchColorStyle()} title={folded.join(', ')}>
+        +{folded.length}
+      </span>
+    );
+  }
+
+  renderStashBadge() {
+    return (
+      <span className='stash-badge' style={this.getBranchColorStyle()} title={`stash@{${this.props.stash!.index}}`}>
         <Icon name='archive' size={12} />
         <span>Stash</span>
       </span>
@@ -84,6 +105,7 @@ export class CommitItem extends React.PureComponent<CommitItemProps, {}> {
         {badges.length > 0 || this.props.stash ?
           <span className='commit-badges'>
             {badges}
+            {this.renderFoldedBadges()}
             {this.props.stash ? this.renderStashBadge() : null}
           </span> : null}
         <span className='commit-summary'>{this.props.commit.summary()}</span>
