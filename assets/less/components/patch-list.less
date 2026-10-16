@@ -1,92 +1,134 @@
-// TODO(restyle): legacy styles moved here unchanged, they still use the old theme variables
-
 /* Patch list */
 
-@patch-list-item-height: 25px;
-
+// The box of the files of a commit or of the index, the viewers only set its margins
 ul.patch-list {
-  flex: 1;
-  margin: 8px;
-  border: 1px solid var(--border-color);
-  padding-left: 0px;
+  flex: 1 1 0;
+  min-height: 0;
+  margin: 0;
+  padding: var(--space-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background-color: var(--surface-1);
   list-style: none;
   overflow-y: auto;
-  background-color: var(--list-background-color);
+  user-select: none;
+
+  // The list clips its rows, so its ring is drawn inside
+  &:focus-visible {
+    outline-offset: -2px;
+  }
 
   li {
-    padding: 4px;
     display: flex;
-    position: relative;
-    user-select: none;
+    align-items: center;
+    gap: var(--space-2);
+    height: 28px;
+    padding: 0 var(--space-2);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    transition: background-color var(--duration-fast) var(--easing);
 
     &:hover {
-      background: var(--hover-color);
+      background-color: var(--hover);
     }
 
     &.selected-patch {
-      background: var(--selected-color);
+      background-color: var(--selected);
+
+      &:hover {
+        background-color: var(--selected-hover);
+      }
     }
 
-    span.icon {
-      padding-right: 4px;
+    // The buttons show on hover, and when they have the keyboard focus
+    &:hover .patch-action,
+    &:focus-within .patch-action {
+      opacity: 1;
+    }
+  }
+
+  .patch-path {
+    flex: 1;
+    min-width: 0;
+
+    .left {
+      color: var(--text-secondary);
     }
 
-    div.buttons {
-      position: absolute;
-      width: 100%;
-      height: 100%;
-      left: 0;
-      top: 0;
-      text-align: right;
-      line-height: @patch-list-item-height;
+    .right {
+      color: var(--text-primary);
+    }
+  }
 
-      button {
-        display: none;
-        margin-right: 2px;
-        padding: 0px 2px;
-      }
+  // Inset by as much from the end of the row as from its top and bottom
+  .patch-action {
+    margin-right: -5px;
+    opacity: 0;
+    transition: opacity var(--duration-fast) var(--easing),
+      background-color var(--duration-fast) var(--easing),
+      color var(--duration-fast) var(--easing);
+  }
 
-      &:hover button {
-        display: inline;
-      }
+  // Empty state, centered in the box
+  &.empty {
+    display: flex;
+    flex-direction: column;
+  }
+
+  li.patch-list-empty {
+    flex: 1;
+    flex-direction: column;
+    justify-content: center;
+    height: auto;
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    text-align: center;
+
+    &:hover {
+      background-color: transparent;
+    }
+
+    svg.icon {
+      color: var(--text-muted);
     }
   }
 }
 
-/* Patch icons */
+/* File status badges */
 
-.patch-icon() {
-  font-family: 'Courier New', Courier, monospace;
-  font-weight: bold;
+ul.patch-list .patch-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-xs);
+  // The tints are translucent, the opaque base keeps the contrast of the letter on hovered and selected rows
+  background-color: var(--surface-1);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+
+  &.patch-status-added,
+  &.patch-status-untracked {
+    background-image: linear-gradient(var(--success-subtle), var(--success-subtle));
+    color: var(--success);
+  }
+
+  &.patch-status-modified {
+    background-image: linear-gradient(var(--warning-subtle), var(--warning-subtle));
+    color: var(--warning);
+  }
+
+  &.patch-status-deleted,
+  &.patch-status-conflicted {
+    background-image: linear-gradient(var(--danger-subtle), var(--danger-subtle));
+    color: var(--danger);
+  }
+
+  &.patch-status-renamed {
+    background-image: linear-gradient(var(--accent-subtle), var(--accent-subtle));
+    color: var(--accent-text);
+  }
 }
-
-span.patch-add::before {
-  .patch-icon();
-  content: '+';
-  color: green;
-}
-
-span.patch-delete::before {
-  .patch-icon();
-  content: '-';
-  color: red;
-}
-
-span.patch-modify::before {
-  .patch-icon();
-  content: '\2026';
-  color: orange;
-}
-
-span.patch-rename::before {
-  .patch-icon();
-  content: '/';
-  color: dodgerblue;
-}
-
-span.patch-conflict::before {
-  .patch-icon();
-  content: '!';
-  color: orange;
-}
-
