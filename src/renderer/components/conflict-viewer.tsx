@@ -5,7 +5,10 @@ import { RepoWrapper, Patch } from '../helpers/repo-wrapper';
 import { openInEditor } from '../helpers/open-in-editor';
 import { arePatchesSimilar } from '../helpers/patch-comparison';
 import { ConflictHunk, findConflictHunks } from '../helpers/conflict-parser';
-import { loadMonaco } from '../helpers/monaco-loader';
+import { getEditorFontFamily, loadMonaco } from '../helpers/monaco-loader';
+import { createWidgetButton, createWidgetHeader, getEditorOptions, WIDGET_HEADER_HEIGHT } from '../helpers/viewer-widgets';
+import { createIconElement } from '../helpers/icons';
+import { Icon } from './icon';
 
 // Load Monaco
 
@@ -18,6 +21,15 @@ enum Version {
   Incoming = 2,
   Both = 3
 }
+
+// Small square in the colors of the lines of a version, it tells which lines a button keeps
+function createSwatch(version: Version) {
+  const swatch = document.createElement('span');
+  swatch.classList.add('conflict-swatch', version === Version.Both ? 'both' : version === Version.Current ? 'current' : 'incoming');
+  swatch.setAttribute('aria-hidden', 'true');
+  return swatch;
+}
+
 export interface ConflictViewerOptions {
   fontSize: number;
 }
@@ -68,6 +80,8 @@ export class ConflictViewer extends React.PureComponent<ConflictViewerProps, {}>
     }
     if (this.props.editorTheme !== prevProps.editorTheme) {
       monaco.editor.setTheme(this.props.editorTheme);
+      // A theme can change the monospace font
+      this.editor.updateOptions({ fontFamily: getEditorFontFamily() });
     }
     if (this.props.options !== prevProps.options) {
       this.editor.updateOptions(this.props.options);
@@ -107,9 +121,7 @@ export class ConflictViewer extends React.PureComponent<ConflictViewerProps, {}>
         theme: this.props.editorTheme,
         automaticLayout: true,
         readOnly: true,
-        minimap: {
-          enabled: false
-        },
+        ...getEditorOptions(),
         ...this.props.options
       };
       this.editor = monaco.editor.create(this.divEditor.current, options);
@@ -155,7 +167,8 @@ export class ConflictViewer extends React.PureComponent<ConflictViewerProps, {}>
         range: new monaco.Range(conflict.start, 1, conflict.start, 1),
         options: {
           isWholeLine: true,
-          className: 'conflict-start'
+          className: 'conflict-start',
+          marginClassName: 'conflict-start'
         }
       });
       const currentEnd = (conflict.ancestors.length > 0 ? conflict.ancestors[0] : conflict.separator) - 1;
@@ -164,7 +177,8 @@ export class ConflictViewer extends React.PureComponent<ConflictViewerProps, {}>
           range: new monaco.Range(conflict.start + 1, 1, currentEnd, 1),
           options: {
             isWholeLine: true,
-            className: 'conflict-current'
+            className: 'conflict-current',
+            marginClassName: 'conflict-current'
           }
         });
       }
@@ -173,7 +187,8 @@ export class ConflictViewer extends React.PureComponent<ConflictViewerProps, {}>
           range: new monaco.Range(conflict.separator + 1, 1, conflict.end - 1, 1),
           options: {
             isWholeLine: true,
-            className: 'conflict-incoming'
+            className: 'conflict-incoming',
+            marginClassName: 'conflict-incoming'
           }
         });
       }
@@ -181,7 +196,8 @@ export class ConflictViewer extends React.PureComponent<ConflictViewerProps, {}>
         range: new monaco.Range(conflict.end, 1, conflict.end, 1),
         options: {
           isWholeLine: true,
-          className: 'conflict-end'
+          className: 'conflict-end',
+          marginClassName: 'conflict-end'
         }
       });
     }
@@ -192,31 +208,7 @@ export class ConflictViewer extends React.PureComponent<ConflictViewerProps, {}>
       const id = `conflict.${this.overlayWidgets.length}`;
       const overlayNode = document.createElement('div');
       overlayNode.classList.add('conflict-widget');
-
-      const contentNode = document.createElement('div');
-      const textNode = document.createElement('p');
-      textNode.textContent = 'Conflict';
-      contentNode.appendChild(textNode);
-
-      const buttonsNode = document.createElement('div');
-      // Current change button
-      const currentChangeButton = document.createElement('button');
-      currentChangeButton.textContent = 'Accept current change';
-      currentChangeButton.addEventListener('click', () => this.acceptChange(this.conflicts[i], Version.Current));
-      buttonsNode.appendChild(currentChangeButton);
-      // Incoming change button
-      const incomingChangeButton = document.createElement('button');
-      incomingChangeButton.textContent = 'Accept incoming change';
-      incomingChangeButton.addEventListener('click', () => this.acceptChange(this.conflicts[i], Version.Incoming));
-      buttonsNode.appendChild(incomingChangeButton);
-      // Incoming change button
-      const bothChangesButton = document.createElement('button');
-      bothChangesButton.textContent = 'Accept both changes';
-      bothChangesButton.addEventListener('click', () => this.acceptChange(this.conflicts[i], Version.Both));
-      buttonsNode.appendChild(bothChangesButton);
-
-      contentNode.appendChild(buttonsNode);
-      overlayNode.appendChild(contentNode);
+      overlayNode.appendChild(this.createConflictHeader(i));
       overlayWidgets.push({
         getId: () => id,
         getDomNode: () => overlayNode,
@@ -233,7 +225,7 @@ export class ConflictViewer extends React.PureComponent<ConflictViewerProps, {}>
         // Used only to compute the position.
         this.viewZoneIds.push(changeAccessor.addZone({
           afterLineNumber: this.conflicts[i].start - 1,
-          heightInLines: 2,
+          heightInPx: WIDGET_HEADER_HEIGHT,
           domNode: document.createElement('div'),
           onDomNodeTop: (top: number) => {
             overlayWidget.getDomNode().style.top = top + 'px';
@@ -244,6 +236,47 @@ export class ConflictViewer extends React.PureComponent<ConflictViewerProps, {}>
         }));
       }
     });
+  }
+
+  createConflictHeader(i: number) {
+    const conflict = this.conflicts[i];
+    const header = createWidgetHeader('conflict-header', conflict.start === 1);
+    const titleNode = document.createElement('span');
+    titleNode.className = 'conflict-title';
+    titleNode.appendChild(createIconElement('git-merge-conflict', 14));
+    const textNode = document.createElement('span');
+    textNode.className = 'conflict-title-text';
+    textNode.textContent = this.conflicts.length > 1 ? `Conflict ${i + 1} of ${this.conflicts.length}` : 'Conflict';
+    titleNode.appendChild(textNode);
+    header.appendChild(titleNode);
+
+    const actionsNode = document.createElement('div');
+    actionsNode.className = 'widget-actions';
+    actionsNode.append(
+      createWidgetButton({
+        label: 'Accept current',
+        labelEnd: ' change',
+        title: 'Keep the lines of the current change',
+        icon: createSwatch(Version.Current),
+        onClick: () => this.acceptChange(conflict, Version.Current)
+      }),
+      createWidgetButton({
+        label: 'Accept incoming',
+        labelEnd: ' change',
+        title: 'Keep the lines of the incoming change',
+        icon: createSwatch(Version.Incoming),
+        onClick: () => this.acceptChange(conflict, Version.Incoming)
+      }),
+      createWidgetButton({
+        label: 'Accept both',
+        labelEnd: ' changes',
+        title: 'Keep the lines of both changes, the current ones first',
+        icon: createSwatch(Version.Both),
+        onClick: () => this.acceptChange(conflict, Version.Both)
+      })
+    );
+    header.appendChild(actionsNode);
+    return header;
   }
 
   removeLines(linesToRemove: Set<number>) {
@@ -292,19 +325,40 @@ export class ConflictViewer extends React.PureComponent<ConflictViewerProps, {}>
   }
 
   render() {
-    const rightButtons = [
-      <button className='red-button' onClick={() => console.log('current')} key='current'>Keep current version</button>,
-      <button className='green-button' onClick={() => console.log('incoming')} key='incoming'>Take incoming version</button>,
-      <button className='yellow-button' onClick={this.handleResolve} key='resolve'>Mark as resolved</button>
-    ];
     return (
       <>
-        <div className="patch-toolbar">
-          <div>
-            <button onClick={this.handleOpenInEditor}>Open in editor</button>
+        <div className='patch-toolbar'>
+          <div className='patch-toolbar-start'>
+            <button type='button'
+              className='ghost-button small-button'
+              title='Open the file in your editor'
+              onClick={this.handleOpenInEditor}>
+              <Icon name='external-link' />
+              <span className='button-label'>Open in editor</span>
+            </button>
           </div>
-          <div>
-            {rightButtons}
+          <div className='patch-toolbar-end conflict-actions'>
+            <button type='button'
+              className='small-button'
+              title='Keep the current version of the file'
+              onClick={() => console.log('current')}>
+              <span className='conflict-swatch current' aria-hidden='true' />
+              <span className='button-label'>Keep current<span className='label-end'> version</span></span>
+            </button>
+            <button type='button'
+              className='small-button'
+              title='Take the incoming version of the file'
+              onClick={() => console.log('incoming')}>
+              <span className='conflict-swatch incoming' aria-hidden='true' />
+              <span className='button-label'>Take incoming<span className='label-end'> version</span></span>
+            </button>
+            <button type='button'
+              className='primary-button small-button'
+              title='Stage the file to mark its conflicts as resolved'
+              onClick={this.handleResolve}>
+              <Icon name='check' />
+              <span className='button-label'>Mark as resolved</span>
+            </button>
           </div>
         </div>
         <div className='patch-editor' ref={this.divEditor} />

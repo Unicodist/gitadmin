@@ -1,173 +1,443 @@
-// TODO(restyle): legacy styles moved here unchanged, they still use the old theme variables
-
 /* Patch viewer */
 
-@patch-header-height: 30px;
-@patch-toolbar-height: 30px;
+@patch-bar-height: 40px;
 
 div.patch-viewer {
   .left-viewer();
   z-index: 1;
-  background: var(--background-color);
   display: flex;
   flex-direction: column;
+  background-color: var(--surface-1);
 
   div.patch-header {
-    height: @patch-header-height;
+    flex: none;
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    flex-shrink: 0;
+    gap: var(--space-2);
+    height: @patch-bar-height;
+    // The close button is inset from the end as much as from the top and the bottom
+    padding: 0 6px 0 var(--space-3);
+    border-bottom: 1px solid var(--border-subtle);
+  }
 
-    h2 {
-      margin: 0px;
-      padding: 6px 8px;
-      user-select: text;
+  // The icon of the file has the color of the status badges of the lists
+  .patch-file-icon {
+    flex: none;
+    display: inline-flex;
+    color: var(--text-secondary);
+
+    &.patch-status-added,
+    &.patch-status-untracked {
+      color: var(--success);
+    }
+
+    &.patch-status-modified {
+      color: var(--warning);
+    }
+
+    &.patch-status-deleted,
+    &.patch-status-conflicted {
+      color: var(--danger);
+    }
+
+    &.patch-status-renamed {
+      color: var(--accent-text);
     }
   }
 
-  div.patch-toolbar {
-    height: @patch-toolbar-height;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+  h2.patch-path {
+    flex: 1;
+    font-size: var(--font-size-md);
+    font-weight: normal;
+    line-height: var(--line-height);
+    user-select: text;
 
-    button {
-      margin: 4px;
+    .left {
+      color: var(--text-secondary);
+    }
+
+    .right {
+      color: var(--text-primary);
+      font-weight: var(--font-weight-medium);
     }
   }
 
   div.patch-editor {
-    height: calc(100% - @patch-header-height - @patch-toolbar-height);
-    align-items: center;
+    flex: 1;
+    min-height: 0;
 
     &.hidden {
       visibility: hidden;
     }
   }
-
-  div.image-viewer {
-    overflow: auto;
-    padding: 0px 8px;
-  }
-
-  div.binary-viewer {
-    padding: 0px 8px;
-  }
 }
 
-/* Hunk widget */
+/* Toolbar */
 
-div.hunk-widget {
-  width: 100%;
+div.patch-viewer div.patch-toolbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: @patch-bar-height;
+  // The icon of the first button, a ghost one, is aligned with the icon of the file
+  padding: 0 var(--space-3) 0 var(--space-1);
+  border-bottom: 1px solid var(--border);
+  container: patch-toolbar / inline-size;
 
-  & > div {
+  // The view mode stays in the middle
+  .patch-toolbar-start,
+  .patch-toolbar-end {
+    flex: 1 1 0;
     display: flex;
-    position: absolute;
-    bottom: 0px;
-    width: 100%;
-    border-bottom: 1px solid;
+    align-items: center;
+    gap: var(--space-2);
+  }
 
-    & > div {
-      position: absolute;
-      right: 18px;
-      bottom: 2px;
+  .patch-toolbar-end {
+    justify-content: flex-end;
+  }
+
+  .segmented-control {
+    flex: none;
+  }
+
+  // As high as the view mode
+  button {
+    height: var(--control-height);
+    border-radius: var(--radius-sm);
+  }
+
+  // Only the icons are left in a narrow viewer, the labels are still read
+  @container patch-toolbar (width < 520px) {
+    button {
+      width: var(--control-height);
+      padding: 0;
+    }
+
+    .button-label {
+      .hidden-label();
     }
   }
 
-  p {
-    margin: 0px;
-  }
+  // The toolbar of a conflict has longer labels
+  @container patch-toolbar (width < 640px) {
+    .conflict-actions button {
+      width: var(--control-height);
+      padding: 0;
+    }
 
-  button {
-    margin: 0px 2px;
+    .conflict-actions .button-label {
+      .hidden-label();
+    }
   }
 }
 
-/* Conflict widget */
+// Like .visually-hidden
+.hidden-label() {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 
-div.conflict-widget {
-  width: 100%;
+/* Editors */
 
-  & > div {
-    display: flex;
-    position: absolute;
-    bottom: 0px;
-    width: 100%;
-    border-bottom: 1px solid;
+div.patch-viewer {
+  // Monaco's stylesheet comes after index.css, these rules are more specific than its own
+  .monaco-editor {
+    font-family: var(--font-family);
+    --monaco-monospace-font: var(--font-mono);
+  }
 
-    & > div {
-      position: absolute;
-      right: 18px;
-      bottom: 2px;
+  // Like the other scrollbars of the app
+  .monaco-scrollable-element > .scrollbar > .slider {
+    border: 2px solid transparent;
+    border-radius: var(--radius-pill);
+    background-clip: padding-box;
+  }
+
+  // The overview of the changes of a diff, on the right
+  .monaco-diff-editor .diffOverview {
+    border-left: 1px solid var(--border-subtle);
+    background-color: transparent;
+  }
+
+  .monaco-diff-editor .diffViewport {
+    background-color: var(--hover);
+
+    &:hover {
+      background-color: var(--active);
     }
   }
 
-  p {
-    margin: 0px 8px;
+  // In the hunk and inline views, the column of the old line numbers is not tinted in red next to
+  // the added lines, which have no old line
+  .monaco-diff-editor .editor.original .margin-view-zones .gutter-delete {
+    background-color: transparent;
+  }
+}
+
+/* Hunk and conflict headers */
+
+// Drawn by the editors above the hunks and the conflicts, across the editor
+div.patch-viewer {
+  .hunk-widget,
+  .conflict-widget {
+    width: 100%;
+    container: widget-header / inline-size;
   }
 
-  button {
-    margin: 0px 2px;
+  .widget-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    height: 100%;
+    // The buttons stay clear of the scrollbar
+    padding: 0 calc(@scrollbar-size + var(--space-1)) 0 var(--space-3);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    background-color: var(--surface-2);
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-tight);
+
+    // The first one is right under the toolbar, which has its own border
+    &.first-widget {
+      border-top: none;
+    }
+  }
+
+  .hunk-range {
+    flex: none;
+    color: var(--text-muted);
+    font-size: var(--font-size-sm);
+    white-space: nowrap;
+  }
+
+  .hunk-context {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+  }
+
+  .widget-actions {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    margin-left: auto;
+  }
+
+  .conflict-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    color: var(--text-secondary);
+    font-weight: var(--font-weight-medium);
+    white-space: nowrap;
+
+    svg.icon {
+      color: var(--danger);
+    }
+  }
+
+  @container widget-header (width < 400px) {
+    .hunk-context {
+      display: none;
+    }
+
+    .widget-actions button {
+      width: var(--control-height-sm);
+      padding: 0;
+    }
+
+    .widget-actions .button-label {
+      .hidden-label();
+    }
+  }
+
+  @container widget-header (width < 620px) {
+    .conflict-title-text {
+      .hidden-label();
+    }
+
+    .conflict-header .widget-actions button {
+      width: var(--control-height-sm);
+      padding: 0;
+    }
+
+    .conflict-header .widget-actions .button-label {
+      .hidden-label();
+    }
   }
 }
 
 /* Margin buttons */
 
-.margin-button() {
-  width: 19px;
-  height: 19px;
+// Stage or unstage a line, they show on hover over the numbers of the changed lines
+div.patch-viewer .margin-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+
+  .margin-button-face {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: calc(100% - 2px);
+    height: calc(100% - 2px);
+    border-radius: var(--radius-xs);
+    color: var(--text-on-emphasis);
+    opacity: 0;
+    transition: opacity var(--duration-fast) var(--easing);
+  }
+
+  &:hover .margin-button-face {
+    opacity: 1;
+  }
+
+  &.stage-line-button .margin-button-face {
+    background-color: var(--success-emphasis);
+  }
+
+  &.unstage-line-button .margin-button-face {
+    background-color: var(--danger-emphasis);
+  }
+}
+
+/* Conflicts */
+
+div.patch-viewer {
+  // Lines of the two versions, their markers are a little stronger
+  .conflict-current {
+    background-color: var(--success-subtle);
+  }
+
+  .conflict-start {
+    background-color: color-mix(in srgb, var(--success) 15%, var(--success-subtle));
+  }
+
+  .conflict-incoming {
+    background-color: var(--accent-subtle);
+  }
+
+  .conflict-end {
+    background-color: color-mix(in srgb, var(--accent) 15%, var(--accent-subtle));
+  }
+
+  // The colors of the lines that a button keeps
+  .conflict-swatch {
+    flex: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+
+    &.current {
+      background-color: var(--success);
+    }
+
+    &.incoming {
+      background-color: var(--accent-text);
+    }
+
+    &.both {
+      background-image: linear-gradient(var(--success) 50%, var(--accent-text) 50%);
+    }
+  }
+}
+
+/* Image viewer */
+
+div.patch-viewer div.image-viewer {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  align-content: start;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  overflow: auto;
+
+  figure.image-side {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    min-width: 0;
+    margin: 0;
+  }
+
+  figcaption {
+    .viewer-label();
+  }
+
+  // The images are drawn on a checkerboard, which shows their transparent parts
+  .image-frame {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 160px;
+    padding: var(--space-4);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: repeating-conic-gradient(var(--surface-2) 0% 25%, var(--surface-1) 0% 50%) 0 0 / 16px 16px;
+
+    img {
+      display: block;
+      max-width: 100%;
+      height: auto;
+    }
+
+    &.image-missing {
+      border-style: dashed;
+      background: var(--surface-1);
+    }
+  }
+
+  .image-details {
+    color: var(--text-muted);
+    font-size: var(--font-size-sm);
+  }
+}
+
+/* Binary viewer */
+
+div.patch-viewer div.binary-viewer {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+}
+
+/* Empty states */
+
+div.patch-viewer .viewer-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
   text-align: center;
-  color: white;
-  font-family: 'Courier New', Courier, monospace;
-  font-weight: bold;
-  border-radius: 5px;
 
-  * {
-    font-family: var(--font-famliy);
-    font-weight: normal;
+  svg.icon {
+    margin-bottom: var(--space-1);
+    color: var(--text-muted);
+  }
+
+  .empty-state-title {
+    color: var(--text-secondary);
+    font-weight: var(--font-weight-medium);
+  }
+
+  .empty-state-hint {
+    color: var(--text-muted);
+    font-size: var(--font-size-sm);
   }
 }
-
-.stage-line-button {
-  .margin-button();
-
-  &:hover {
-    background: green;
-
-    &::before {
-      content: '+';
-    }
-  }
-}
-
-.unstage-line-button {
-  .margin-button();
-
-  &:hover {
-    background: red;
-
-    &::before {
-      content: '-';
-    }
-  }
-}
-
-/* Inline decorations */
-
-.conflict-start {
-  background: lightgreen;
-}
-
-.conflict-current {
-  background: lighten(lightgreen, 10%);
-}
-
-.conflict-end {
-  background: lightblue;
-}
-
-.conflict-incoming {
-  background: lighten(lightblue, 10%);
-}
-

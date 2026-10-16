@@ -4,6 +4,9 @@ import { isBinaryFile } from 'isbinaryfile';
 import { RepoWrapper, PatchType, Patch, DiffFile } from '../helpers/repo-wrapper';
 import { CancellablePromise, makeCancellable } from '../helpers/make-cancellable';
 import { arePatchesEqual } from '../helpers/patch-comparison';
+import { describePatchPath, getPatchStatusDisplay, splitPath } from '../helpers/patch-status';
+import { getPatchIcon } from '../helpers/viewer-format';
+import { Icon } from './icon';
 import { TextPatchViewer, TextPatchViewerOptions } from './text-patch-viewer';
 import { BinaryPatchViewer } from './binary-patch-viewer';
 import { ImagePatchViewer } from './image-patch-viewer';
@@ -76,11 +79,11 @@ export class PatchViewer extends React.PureComponent<PatchViewerProps, PatchView
       newBlob: Buffer.from(''),
       viewerType: BlobType.Text
     };
-    this.handleKeyUp = this.handleKeyUp.bind(this);
+    this.handleKeyDown = this.handleKeyDown.bind(this);
   }
 
   componentDidMount() {
-    window.addEventListener('keyup', this.handleKeyUp);
+    window.addEventListener('keydown', this.handleKeyDown);
     this.loadData();
   }
 
@@ -97,13 +100,16 @@ export class PatchViewer extends React.PureComponent<PatchViewerProps, PatchView
     if (this.blobsPromise) {
       this.blobsPromise.cancel();
     }
-    window.removeEventListener('keyup', this.handleKeyUp);
+    window.removeEventListener('keydown', this.handleKeyDown);
   }
 
-  handleKeyUp(event: KeyboardEvent) {
-    if (event.keyCode === 27) {
-      this.props.onClose();
+  handleKeyDown(event: KeyboardEvent) {
+    // Escape is left to what handled it first, like the find widget of the editor, and to the dialogs
+    if (event.key !== 'Escape' || event.defaultPrevented ||
+      (event.target instanceof Element && event.target.closest('[aria-modal="true"], .modal-container'))) {
+      return;
     }
+    this.props.onClose();
   }
 
   async loadData() {
@@ -141,8 +147,6 @@ export class PatchViewer extends React.PureComponent<PatchViewerProps, PatchView
   }
 
   render() {
-    const path = this.props.patch.newFile.path;
-    const i = Math.max(path.lastIndexOf('/'), 0);
     let viewer: React.JSX.Element | null = null;
     if (this.state.loadedPatch) {
       if (this.state.viewerType === BlobType.Text) {
@@ -170,16 +174,30 @@ export class PatchViewer extends React.PureComponent<PatchViewerProps, PatchView
         viewer = <BinaryPatchViewer />;
       }
     }
+    const patch = this.props.patch;
+    const status = getPatchStatusDisplay(patch.status);
+    const [folder, fileName] = splitPath(patch.newFile.path);
     return (
       <div className='patch-viewer'>
         <div className='patch-header'>
-          <h2>
-            <div className='ellipsis-middle'>
-              <div className='left'>{path.substr(0, i)}</div>
-              <div className='right'>{path.substr(i)}</div>
-            </div>
+          <span className={`patch-file-icon ${status.className}`} title={status.label}>
+            <Icon name={getPatchIcon(patch.status)} />
+            <span className='visually-hidden'>{status.label}</span>
+          </span>
+          <h2 className='patch-path ellipsis-middle'
+            aria-label={patch.newFile.path}
+            title={describePatchPath(patch.status, patch.oldFile.path, patch.newFile.path)}>
+            <span className='left'>{folder}</span>
+            <span className='right'>{fileName}</span>
           </h2>
-          <button onClick={this.props.onClose}>Close</button>
+          <button type='button'
+            className='ghost-button icon-button'
+            aria-label='Close diff'
+            aria-keyshortcuts='Escape'
+            title='Close diff'
+            onClick={this.props.onClose}>
+            <Icon name='x' />
+          </button>
         </div>
         {viewer}
       </div>
