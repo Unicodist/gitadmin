@@ -1,53 +1,140 @@
-// TODO(restyle): legacy styles moved here unchanged, they still use the old theme variables
-
 /* Repo toolbar */
 
-div.repo-toolbar {
-  height: @toolbar-height;
-  display: flex;
-  text-align: center;
-  background-color: var(--toolbar-color);
-  box-shadow: 0px 0px 2px 2px rgba(0, 0, 0, 0.2);
-  z-index: 3;
+@toolbar-button-height: 32px;
+// Space between the buttons of a group
+@toolbar-group-gap: 2px;
 
+div.repo-toolbar {
+  position: relative;
+  z-index: 6;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  height: @toolbar-height;
+  padding: 0 var(--space-3);
+  border-bottom: 1px solid var(--border);
+  background-color: var(--surface-1);
+
+  // The title and the end share the free space equally, so that the buttons are centered in the window
   div.repo-title {
-    display: table;
-    height: 100%;
-    margin-right: 25px;
-    background-color: var(--list-background-color);
-    padding: 0px 16px;
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    span.repo-icon {
+      flex: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: @toolbar-button-height;
+      height: @toolbar-button-height;
+      border-radius: var(--radius-sm);
+      background-color: var(--accent-subtle);
+      color: var(--accent-text);
+    }
 
     h1 {
-      display: table-cell;
-      vertical-align: middle;
-      margin: 0px;
-      font-size: 16px;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: var(--font-size-md);
     }
   }
 
-  div.separator {
-    border-width: 25px 0px 25px 20px;
-    border-style: solid;
-    border-color: transparent transparent transparent var(--list-background-color);
-    margin-left: -25px;
+  div.toolbar-buttons {
+    flex: none;
+    display: flex;
+    align-items: center;
   }
 
-  div.toolbar-buttons {
-    flex: 1;
+  div.toolbar-group {
     display: flex;
-    justify-content: center;
-    padding: 4px 0px;
-    
-    button {
-      margin: 0px 2px;
-      padding: 0px;
-      width: 48px;
+    align-items: center;
+    gap: @toolbar-group-gap;
 
-      div.spinner {
-        .spinner(15px);
-        margin: auto;
-      }
+    // Divider between two groups
+    & + div.toolbar-group::before {
+      content: "";
+      flex: none;
+      width: 1px;
+      height: 20px;
+      margin: 0 calc(var(--space-2) - @toolbar-group-gap) 0 var(--space-2);
+      background-color: var(--border);
+    }
+  }
+
+  div.toolbar-end {
+    flex: 1 1 0;
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  button {
+    height: @toolbar-button-height;
+    padding: 0 10px;
+  }
+}
+
+// In a narrow window, the title takes the space that it needs and the buttons are centered in the rest
+@media (max-width: 960px) {
+  div.repo-toolbar {
+    gap: var(--space-3);
+
+    div.repo-title {
+      flex: 0 1 auto;
+    }
+
+    div.toolbar-buttons {
+      flex: 1 0 auto;
+      justify-content: center;
+    }
+
+    div.toolbar-end {
+      flex: none;
+    }
+
+    button {
+      padding: 0 var(--space-2);
     }
   }
 }
 
+/* Spinner button */
+
+button.spinner-button {
+  svg.spinner-icon {
+    color: var(--accent-text);
+    animation: spin 0.8s linear infinite;
+  }
+
+  &[aria-busy="true"] {
+    cursor: progress;
+  }
+
+  // Without an icon, the spinner covers the label, which keeps its width
+  &.without-icon {
+    position: relative;
+
+    svg.spinner-icon {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      margin: (-@icon-size / 2) 0 0 (-@icon-size / 2);
+    }
+
+    &[aria-busy="true"] span.spinner-button-label {
+      opacity: 0;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  // Like the other spinners, it only turns slower
+  button.spinner-button svg.spinner-icon {
+    animation-duration: 2.4s;
+  }
+}

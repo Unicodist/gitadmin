@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { RepoWrapper, removeReferencePrefix, Commit } from '../helpers/repo-wrapper';
+import { Icon } from './icon';
 import { SpinnerButton } from './spinner-button';
 
 export class ToolbarProps {
@@ -54,19 +55,61 @@ export class Toolbar extends React.PureComponent<ToolbarProps, {}> {
   render() {
     return (
       <div className='repo-toolbar'>
-        <div className='repo-title'>
+        <div className='repo-title' title={this.props.repo.workdir}>
+          <span className='repo-icon'>
+            <Icon name='folder-git-2' />
+          </span>
           <h1>{this.props.repo.name}</h1>
         </div>
-        <div className='separator' />
         <div className='toolbar-buttons'>
-          <SpinnerButton value='Fetch' onClick={this.handleFetchButtonClick} />
-          <SpinnerButton value='Pull' onClick={this.handlePullButtonClick} />
-          <SpinnerButton value='Push' onClick={this.handlePushButtonClick} />
-          <button onClick={this.handleBranchButtonClick}>Branch</button>
-          <SpinnerButton value='Stash' onClick={this.handleStashButtonClick} />
-          <SpinnerButton value='Pop' onClick={this.handlePopButtonClick} />
+          <div className='toolbar-group' role='group' aria-label='Remote actions'>
+            <SpinnerButton value='Fetch'
+              icon='cloud-download'
+              className='ghost-button'
+              title='Fetch from all the remotes'
+              onClick={this.handleFetchButtonClick} />
+            <SpinnerButton value='Pull'
+              icon='arrow-down-to-line'
+              className='ghost-button'
+              title='Pull the current branch from origin'
+              onClick={this.handlePullButtonClick} />
+            <SpinnerButton value='Push'
+              icon='arrow-up-from-line'
+              className='ghost-button'
+              title='Push the current branch to origin'
+              onClick={this.handlePushButtonClick} />
+          </div>
+          <div className='toolbar-group' role='group' aria-label='Branch actions'>
+            <button type='button'
+              className='ghost-button'
+              title='Create a branch at the selected commit'
+              onClick={this.handleBranchButtonClick}>
+              <Icon name='git-branch-plus' />
+              Branch
+            </button>
+          </div>
+          <div className='toolbar-group' role='group' aria-label='Stash actions'>
+            <SpinnerButton value='Stash'
+              icon='archive'
+              className='ghost-button'
+              title='Stash the uncommitted changes'
+              onClick={this.handleStashButtonClick} />
+            <SpinnerButton value='Pop'
+              icon='archive-restore'
+              className='ghost-button'
+              title='Apply the last stash and remove it'
+              onClick={this.handlePopButtonClick} />
+          </div>
         </div>
-        <button onClick={this.props.onRepoClose}>Close</button>
+        <div className='toolbar-end'>
+          <button type='button'
+            className='ghost-button'
+            title='Close the repository'
+            onClick={this.props.onRepoClose}>
+            <Icon name='x' />
+            Close
+          </button>
+        </div>
       </div>
     );
   }
