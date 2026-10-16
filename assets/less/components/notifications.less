@@ -1,0 +1,70 @@
+// TODO(restyle): legacy styles moved here unchanged, they still use the old theme variables
+
+/* Notifications */
+
+@notification-item-width: 400px;
+@notification-padding: 16px;
+@notification-border-size: 1px;
+
+ul.notification-queue {
+  position: absolute;
+  top: 0;
+  left: calc(100% - @notification-item-width);
+  width: 2 * @notification-item-width;
+  z-index: 5;
+  list-style: none;
+  margin: 16px 0px;
+  padding: 0px;
+
+  li {
+    width: calc(50% - 2 * (@notification-padding + @notification-border-size));
+    padding: @notification-padding;
+    margin: 8px 0px;
+    margin-left: 50%;
+    transition: margin-left 1s 0s;
+    border: 1px solid var(--border-color);
+    background: var(--background-color);
+    box-shadow: 0px 0px 2px 2px rgba(0, 0, 0, 0.2);
+
+    &.shown {
+      margin-left: 0px;
+    }
+
+    &:hover {
+      background: var(--hover-color);
+    }
+
+    &.information {
+      color: var(--notification-font-color);
+      background-color: var(--info-notification-background-color);
+      border-color: var(--info-notification-border-color);
+
+      &:hover {
+        background-color: var(--info-notification-background-color);
+        border-color: var(--info-notification-background-color);
+      }
+
+      &:active {
+        background-color: var(--info-notification-border-color);
+        border-color: var(--info-notification-background-color);
+      }
+    }
+
+    &.error {
+      color: var(--notification-font-color);
+      background-color: var(--error-notification-background-color);
+      border-color: var(--error-notification-border-color);
+
+      &:hover {
+        background-color: var(--error-notification-background-color);
+        border-color: var(--error-notification-background-color);
+      }
+
+      &:active {
+        background-color: var(--error-notification-border-color);
+        border-color: var(--error-notification-background-color);
+      }
+    }
+  }
+}
+

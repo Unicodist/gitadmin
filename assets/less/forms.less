@@ -1,0 +1,139 @@
+/* Form controls */
+
+input[type="text"],
+input[type="number"],
+input[type="email"],
+input[type="search"],
+input:not([type]),
+textarea,
+select {
+  width: auto;
+  min-width: 0;
+  height: var(--control-height);
+  margin: 0;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background-color: var(--surface-1);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: var(--font-size);
+  transition: border-color var(--duration-fast) var(--easing),
+    box-shadow var(--duration-fast) var(--easing);
+
+  &::placeholder {
+    color: var(--text-muted);
+    opacity: 1;
+  }
+
+  &:focus,
+  &:focus-visible {
+    outline: none;
+    border-color: var(--focus-ring);
+    box-shadow: 0 0 0 3px var(--accent-subtle);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+textarea {
+  height: auto;
+  padding: 6px var(--space-2);
+  line-height: var(--line-height);
+  resize: none;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+// Wraps a select to draw its arrow: <div class="select"><select/><Icon name="chevron-down"/></div>
+.select {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+
+  select {
+    width: 100%;
+    padding-right: 28px;
+    appearance: none;
+  }
+
+  svg.icon {
+    position: absolute;
+    right: var(--space-2);
+    color: var(--text-secondary);
+    pointer-events: none;
+  }
+}
+
+// A label above its control
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  & > label {
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+  }
+}
+
+// A checkbox or a radio button followed by its label
+.check-field {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+// Radio buttons drawn as a row of joined buttons:
+// <div class="segmented-control" role="radiogroup"><input type="radio" id="a"/><label for="a">A</label>...</div>
+.segmented-control {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background-color: var(--surface-2);
+
+  input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    height: calc(var(--control-height) - 6px);
+    padding: 0 10px;
+    border-radius: var(--radius-xs);
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    transition: background-color var(--duration-fast) var(--easing), color var(--duration-fast) var(--easing);
+
+    &:hover {
+      color: var(--text-primary);
+    }
+  }
+
+  input[type="radio"]:checked + label {
+    background-color: var(--surface-1);
+    box-shadow: var(--shadow-sm);
+    color: var(--text-primary);
+  }
+
+  input[type="radio"]:focus-visible + label {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
+  }
+}

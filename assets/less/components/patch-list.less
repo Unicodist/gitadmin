@@ -1,0 +1,92 @@
+// TODO(restyle): legacy styles moved here unchanged, they still use the old theme variables
+
+/* Patch list */
+
+@patch-list-item-height: 25px;
+
+ul.patch-list {
+  flex: 1;
+  margin: 8px;
+  border: 1px solid var(--border-color);
+  padding-left: 0px;
+  list-style: none;
+  overflow-y: auto;
+  background-color: var(--list-background-color);
+
+  li {
+    padding: 4px;
+    display: flex;
+    position: relative;
+    user-select: none;
+
+    &:hover {
+      background: var(--hover-color);
+    }
+
+    &.selected-patch {
+      background: var(--selected-color);
+    }
+
+    span.icon {
+      padding-right: 4px;
+    }
+
+    div.buttons {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      left: 0;
+      top: 0;
+      text-align: right;
+      line-height: @patch-list-item-height;
+
+      button {
+        display: none;
+        margin-right: 2px;
+        padding: 0px 2px;
+      }
+
+      &:hover button {
+        display: inline;
+      }
+    }
+  }
+}
+
+/* Patch icons */
+
+.patch-icon() {
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: bold;
+}
+
+span.patch-add::before {
+  .patch-icon();
+  content: '+';
+  color: green;
+}
+
+span.patch-delete::before {
+  .patch-icon();
+  content: '-';
+  color: red;
+}
+
+span.patch-modify::before {
+  .patch-icon();
+  content: '\2026';
+  color: orange;
+}
+
+span.patch-rename::before {
+  .patch-icon();
+  content: '/';
+  color: dodgerblue;
+}
+
+span.patch-conflict::before {
+  .patch-icon();
+  content: '!';
+  color: orange;
+}
+

@@ -1,0 +1,30 @@
+// TODO(restyle): legacy styles moved here unchanged, they still use the old theme variables
+
+/* Repo dashboard */
+
+div.repo-dashboard {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Repo content */
+
+div.repo-content {
+  flex: 1;
+  display: flex;
+}
+
+.left-viewer() {
+  flex: 1;
+  min-width: @middle-viewer-min-width;
+}
+
+/* Splitter */
+
+div.splitter {
+  border: 1.5px solid var(--splitter-color);
+  cursor: col-resize;
+  z-index: 1;
+}
+

@@ -1,5 +1,5 @@
 import { ipcRenderer } from 'electron';
-import { SerializedMenuItem } from '../../shared/ipc';
+import { SerializedMenuItem, ThemeSource } from '../../shared/ipc';
 
 export interface MenuItem {
   label?: string;
@@ -50,4 +50,10 @@ export async function showOpenDirectoryDialog() {
     properties: ['openDirectory', 'createDirectory']
   });
   return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0];
+}
+
+// Sets the color scheme of the native parts of the window (menus, scrollbars, title bar),
+// and the color shown before the page is painted
+export async function setThemeSource(themeSource: ThemeSource, backgroundColor?: string) {
+  await ipcRenderer.invoke('set-theme-source', themeSource, backgroundColor);
 }

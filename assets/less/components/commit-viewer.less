@@ -1,0 +1,85 @@
+// TODO(restyle): legacy styles moved here unchanged, they still use the old theme variables
+
+/* Commit viewer */
+
+.commit-viewer {
+  width: @commit-viewer-min-width;
+  min-width: @commit-viewer-min-width;
+  display: flex;
+  flex-direction: column;
+  background: var(--background-color);
+  z-index: 4;
+  user-select: text;
+
+  h3 {
+    margin: 4px 0;
+    text-align: center;
+    font-size: var(--font-size);
+    font-weight: normal;
+  }
+
+  div.commit-message {
+    max-height: 100px;
+    overflow-y: auto;
+    background: var(--list-background-color);
+    border: 1px solid var(--border-color);
+    margin: 8px;
+    padding: 8px;
+
+    h2 {
+      margin: 0px;
+    }
+
+    pre {
+      font-size: 13px;
+      font-family: var(--font-famliy);
+      margin: 8px 0px 0px 0px;
+    }
+  }
+
+  p {
+    margin: 4px 8px;
+  }
+
+  .sha-button {
+    border-bottom: 1px dotted var(--font-color);
+  }
+
+  .navigate-button {
+    cursor: pointer;
+  }
+
+  div.section-header {
+    display: flex;
+    position: relative;
+    
+    button {
+      position: absolute;
+      right: 0px;
+    } 
+
+    .amend-container {
+      display: flex;
+      position: absolute;
+      right: 0px;
+      margin: 4px 8px;
+    }
+  } 
+
+  & > input {
+    margin: 4px 8px;
+  }
+
+  & > textarea {
+    margin: 4px 8px;
+    resize: none;
+    font-family: var(--font-famliy);
+  }
+}
+
+/* Index Viewer */
+
+.index-viewer {
+  user-select: none;
+}
+

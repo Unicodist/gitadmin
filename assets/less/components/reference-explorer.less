@@ -1,0 +1,54 @@
+// TODO(restyle): legacy styles moved here unchanged, they still use the old theme variables
+
+/* Reference explorer */
+
+div.reference-explorer {
+  width: @reference-explorer-initial-width;
+  padding-top: 8px;
+
+  & > div {
+    overflow-y: auto;
+    height: 100%;
+  }
+
+  li {
+    list-style: none;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;    
+    background: var(--list-background-color);
+    padding: 2px 4px 2px 16px;
+    font-size: 13px;
+
+    &:hover {
+      background: var(--hover-color);
+    }
+
+    &.selected {
+      background: var(--selected-color);
+    }
+  }
+
+  ul {
+    margin: 0px;
+    padding: 0px;
+
+    &.hidden {
+      display: none;
+    }
+  }
+  
+  h3 {
+    margin: 0px;
+    padding: 4px;
+    background: var(--reference-section-background-color);
+    display: flex;
+    justify-content: space-between;
+    white-space: nowrap;
+
+    span {
+      padding: 0px 4px;
+    }
+  }
+}
+

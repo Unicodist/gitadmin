@@ -7,3 +7,7 @@ export interface SerializedMenuItem {
   enabled?: boolean;
   submenu?: SerializedMenuItem[];
 }
+
+// Color scheme of the native parts of the window (menus, scrollbars, title bar),
+// 'system' follows the OS
+export type ThemeSource = 'system' | 'light' | 'dark';

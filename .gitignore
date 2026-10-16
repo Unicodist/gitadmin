@@ -65,6 +65,7 @@ out/
 
 # Build output
 dist/
+assets/css/
 build-test/
 test-results/
 playwright-report/

@@ -1,0 +1,26 @@
+// TODO(restyle): legacy styles moved here unchanged, they still use the old theme variables
+
+/* Reference badge */
+
+div.commit-list li span.reference {
+  border-radius: 5px;
+  padding: 2px;
+  margin-right: 2px;
+  background-color: var(--branch-color);
+  color: white;
+  user-select: none;
+  filter: brightness(0.8);
+
+  &.tag {
+    border-radius: 0px;
+  }
+
+  &:hover {
+    filter: brightness(1);
+  }
+
+  &.selected {
+    filter: brightness(1);
+  }
+}
+

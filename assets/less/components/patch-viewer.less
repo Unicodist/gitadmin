@@ -1,0 +1,173 @@
+// TODO(restyle): legacy styles moved here unchanged, they still use the old theme variables
+
+/* Patch viewer */
+
+@patch-header-height: 30px;
+@patch-toolbar-height: 30px;
+
+div.patch-viewer {
+  .left-viewer();
+  z-index: 1;
+  background: var(--background-color);
+  display: flex;
+  flex-direction: column;
+
+  div.patch-header {
+    height: @patch-header-height;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+
+    h2 {
+      margin: 0px;
+      padding: 6px 8px;
+      user-select: text;
+    }
+  }
+
+  div.patch-toolbar {
+    height: @patch-toolbar-height;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    button {
+      margin: 4px;
+    }
+  }
+
+  div.patch-editor {
+    height: calc(100% - @patch-header-height - @patch-toolbar-height);
+    align-items: center;
+
+    &.hidden {
+      visibility: hidden;
+    }
+  }
+
+  div.image-viewer {
+    overflow: auto;
+    padding: 0px 8px;
+  }
+
+  div.binary-viewer {
+    padding: 0px 8px;
+  }
+}
+
+/* Hunk widget */
+
+div.hunk-widget {
+  width: 100%;
+
+  & > div {
+    display: flex;
+    position: absolute;
+    bottom: 0px;
+    width: 100%;
+    border-bottom: 1px solid;
+
+    & > div {
+      position: absolute;
+      right: 18px;
+      bottom: 2px;
+    }
+  }
+
+  p {
+    margin: 0px;
+  }
+
+  button {
+    margin: 0px 2px;
+  }
+}
+
+/* Conflict widget */
+
+div.conflict-widget {
+  width: 100%;
+
+  & > div {
+    display: flex;
+    position: absolute;
+    bottom: 0px;
+    width: 100%;
+    border-bottom: 1px solid;
+
+    & > div {
+      position: absolute;
+      right: 18px;
+      bottom: 2px;
+    }
+  }
+
+  p {
+    margin: 0px 8px;
+  }
+
+  button {
+    margin: 0px 2px;
+  }
+}
+
+/* Margin buttons */
+
+.margin-button() {
+  width: 19px;
+  height: 19px;
+  text-align: center;
+  color: white;
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: bold;
+  border-radius: 5px;
+
+  * {
+    font-family: var(--font-famliy);
+    font-weight: normal;
+  }
+}
+
+.stage-line-button {
+  .margin-button();
+
+  &:hover {
+    background: green;
+
+    &::before {
+      content: '+';
+    }
+  }
+}
+
+.unstage-line-button {
+  .margin-button();
+
+  &:hover {
+    background: red;
+
+    &::before {
+      content: '-';
+    }
+  }
+}
+
+/* Inline decorations */
+
+.conflict-start {
+  background: lightgreen;
+}
+
+.conflict-current {
+  background: lighten(lightgreen, 10%);
+}
+
+.conflict-end {
+  background: lightblue;
+}
+
+.conflict-incoming {
+  background: lighten(lightblue, 10%);
+}
+
