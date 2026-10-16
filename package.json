@@ -26,7 +26,6 @@
   "author": "Pierre Vigier",
   "license": "GPL-3.0-or-later",
   "dependencies": {
-    "@electron/remote": "^2.1.3",
     "chokidar": "^5.0.0",
     "dugite": "^3.2.3",
     "electron-squirrel-startup": "^1.0.1",
