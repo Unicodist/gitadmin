@@ -7,6 +7,7 @@ import {
   getEditorThemeData, getEditorThemeName, listThemes, parseTheme, resolveThemeName, SYSTEM_THEME, Theme, ThemeManager
 } from '../src/shared/theme-manager';
 import { BRANCH_COLORS } from '../src/renderer/helpers/commit-graph';
+import { listFiles } from './helpers';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const less = require('less');
@@ -18,16 +19,6 @@ const SRC_PATH = Path.join(ROOT, 'src');
 
 function readThemeFile(name: string) {
   return JSON.parse(fs.readFileSync(Path.join(THEMES_PATH, `${name}.json`)).toString());
-}
-
-function listFiles(dir: string, extensions: string[]): string[] {
-  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const path = Path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      return listFiles(path, extensions);
-    }
-    return extensions.some((extension) => entry.name.endsWith(extension)) ? [path] : [];
-  });
 }
 
 // Variables defined in the :root block of tokens.less

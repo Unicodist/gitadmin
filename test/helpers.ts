@@ -109,3 +109,14 @@ export class TestRepo {
 export function lines(...values: string[]) {
   return values.map((value) => `${value}\n`).join('');
 }
+
+// Paths of the files of a folder and of its subfolders that have one of the extensions
+export function listFiles(dir: string, extensions: string[]): string[] {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const path = Path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      return listFiles(path, extensions);
+    }
+    return extensions.some((extension) => entry.name.endsWith(extension)) ? [path] : [];
+  });
+}
