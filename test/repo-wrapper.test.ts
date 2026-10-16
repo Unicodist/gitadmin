@@ -58,7 +58,7 @@ describe('opening repositories', () => {
   });
 
   it('initializes a repository', async () => {
-    const dir = Path.join(fs.realpathSync(os.tmpdir()), `gitamine-init-${process.pid}-${Date.now()}`, 'nested');
+    const dir = Path.join(fs.realpathSync.native(os.tmpdir()), `gitamine-init-${process.pid}-${Date.now()}`, 'nested');
     const location = await RepoWrapper.init(dir);
     assert.equal(location.workdir, dir);
     assert.ok(fs.existsSync(Path.join(dir, '.git', 'HEAD')));
@@ -67,7 +67,7 @@ describe('opening repositories', () => {
 
   it('clones a repository', async () => {
     await repo.commit('Initial', { 'README.md': 'hello\n' });
-    const dir = Path.join(fs.realpathSync(os.tmpdir()), `gitamine-clone-${process.pid}-${Date.now()}`);
+    const dir = Path.join(fs.realpathSync.native(os.tmpdir()), `gitamine-clone-${process.pid}-${Date.now()}`);
     const location = await RepoWrapper.clone(repo.workdir, dir);
     assert.equal(location.workdir, dir);
     assert.equal(fs.readFileSync(Path.join(dir, 'README.md')).toString(), 'hello\n');
@@ -592,7 +592,7 @@ describe('remotes', () => {
   beforeEach(async () => {
     remote = repo;
     await remote.commit('Initial', { 'file.txt': 'a\n' });
-    clone = Path.join(fs.realpathSync(os.tmpdir()), `gitamine-remote-${process.pid}-${Date.now()}`);
+    clone = Path.join(fs.realpathSync.native(os.tmpdir()), `gitamine-remote-${process.pid}-${Date.now()}`);
     await remote.git('clone', '--quiet', remote.workdir, clone);
   });
 
