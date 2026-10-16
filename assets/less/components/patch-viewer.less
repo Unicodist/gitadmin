@@ -126,20 +126,9 @@ div.patch-viewer div.patch-toolbar {
   // The toolbar of a conflict shortens its labels first
   @container patch-toolbar (width < 620px) {
     .conflict-actions .label-end {
-      .hidden-label();
+      .visually-hidden();
     }
   }
-}
-
-// Like .visually-hidden
-.hidden-label() {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
 }
 
 // A button of a narrow toolbar or header, only its icon is left
@@ -148,7 +137,7 @@ div.patch-viewer div.patch-toolbar {
   padding: 0;
 
   .button-label {
-    .hidden-label();
+    .visually-hidden();
   }
 }
 
@@ -280,13 +269,13 @@ div.patch-viewer {
   // A narrow conflict header shortens the labels, then drops the title and the labels
   @container widget-header (width < 680px) {
     .conflict-header .label-end {
-      .hidden-label();
+      .visually-hidden();
     }
   }
 
   @container widget-header (width < 530px) {
     .conflict-title-text {
-      .hidden-label();
+      .visually-hidden();
     }
   }
 
