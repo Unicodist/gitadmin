@@ -3,6 +3,7 @@ import { RepoWrapper, Commit } from '../helpers/repo-wrapper';
 import { ReferenceList } from './reference-list';
 import { StashList } from './stash-list';
 import { InputDialogHandler } from './input-dialog';
+import { Icon } from './icon';
 
 export interface ReferenceExplorerProps {
   repo: RepoWrapper;
@@ -20,6 +21,7 @@ export class ReferenceExplorer extends React.PureComponent<ReferenceExplorerProp
   constructor(props: ReferenceExplorerProps) {
     super(props);
     this.div = React.createRef();
+    this.handleKeyDown = this.handleKeyDown.bind(this);
   }
 
   resize(offset: number) {
@@ -28,12 +30,28 @@ export class ReferenceExplorer extends React.PureComponent<ReferenceExplorerProp
     }
   }
 
+  // The arrow keys move the focus to the previous or next row, the rows of collapsed sections are skipped
+  handleKeyDown(event: React.KeyboardEvent<HTMLElement>) {
+    if ((event.key !== 'ArrowDown' && event.key !== 'ArrowUp') || !this.div.current) {
+      return;
+    }
+    const rows = Array.from(this.div.current.querySelectorAll('button')).filter((row) => row.offsetParent !== null);
+    const i = rows.indexOf(document.activeElement as HTMLButtonElement);
+    if (i !== -1) {
+      event.preventDefault();
+      rows[event.key === 'ArrowDown' ? Math.min(i + 1, rows.length - 1) : Math.max(i - 1, 0)].focus();
+    }
+  }
+
   render() {
     const references = [...this.props.repo.references.values()];
     return (
       <div className='reference-explorer' ref={this.div}>
-        <div>
-          <li onClick={this.props.onIndexSelect}>Index</li>
+        <nav aria-label='References' onKeyDown={this.handleKeyDown}>
+          <button type='button' className='reference-item' onClick={this.props.onIndexSelect}>
+            <Icon name='pencil-line' />
+            <span className='reference-name'>Index</span>
+          </button>
           <ReferenceList title="Local branches"
             repo={this.props.repo}
             references={references.filter((reference) => reference.isBranch())}
@@ -55,7 +73,7 @@ export class ReferenceExplorer extends React.PureComponent<ReferenceExplorerProp
           <StashList repo={this.props.repo}
             stashes={[...this.props.repo.stashes.values()]}
             onClick={this.props.onCommitSelect} />
-        </div>
+        </nav>
       </div>
     );
   }

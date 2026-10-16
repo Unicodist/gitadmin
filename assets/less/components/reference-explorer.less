@@ -1,54 +1,134 @@
-// TODO(restyle): legacy styles moved here unchanged, they still use the old theme variables
-
 /* Reference explorer */
 
 div.reference-explorer {
   width: @reference-explorer-initial-width;
-  padding-top: 8px;
+  background-color: var(--surface-0);
 
-  & > div {
-    overflow-y: auto;
-    height: 100%;
-  }
-
-  li {
-    list-style: none;
-    text-overflow: ellipsis;
-    overflow: hidden;
-    white-space: nowrap;    
-    background: var(--list-background-color);
-    padding: 2px 4px 2px 16px;
-    font-size: 13px;
+  // Rows of the panel: the Index, the headers of the sections and their items
+  .explorer-row() {
+    justify-content: flex-start;
+    gap: var(--space-2);
+    width: 100%;
+    padding: 0 var(--space-2);
+    border: none;
+    border-radius: var(--radius-sm);
+    background-color: transparent;
+    text-align: left;
 
     &:hover {
-      background: var(--hover-color);
+      background-color: var(--hover);
     }
 
-    &.selected {
-      background: var(--selected-color);
+    &:active {
+      background-color: var(--active);
     }
+
+    // The panel clips its overflow, the ring is drawn inside the row
+    &:focus-visible {
+      outline-offset: -2px;
+    }
+  }
+
+  .explorer-text() {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: var(--line-height);
+  }
+
+  & > nav {
+    height: 100%;
+    overflow-y: auto;
+    padding: var(--space-2);
   }
 
   ul {
-    margin: 0px;
-    padding: 0px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
 
-    &.hidden {
-      display: none;
+  button.reference-item {
+    .explorer-row();
+    height: 26px;
+    color: var(--text-primary);
+    font-weight: normal;
+
+    svg.icon {
+      color: var(--text-secondary);
+    }
+
+    .reference-name {
+      .explorer-text();
+    }
+
+    // The head, marked by its weight and a check
+    &.current {
+      font-weight: var(--font-weight-semibold);
+
+      svg.reference-current {
+        color: var(--accent-text);
+      }
     }
   }
-  
-  h3 {
-    margin: 0px;
-    padding: 4px;
-    background: var(--reference-section-background-color);
-    display: flex;
-    justify-content: space-between;
-    white-space: nowrap;
 
-    span {
-      padding: 0px 4px;
+  /* Sections */
+
+  .reference-section {
+    margin-top: var(--space-3);
+  }
+
+  h3 {
+    font-size: inherit;
+  }
+
+  button.reference-section-toggle {
+    .explorer-row();
+    height: 28px;
+    color: var(--text-muted);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+
+    // A smaller gap before the count leaves room for the title in a narrow panel,
+    // the margin of the chevron keeps the title aligned with the names of the items
+    gap: var(--space-1);
+
+    &:hover {
+      color: var(--text-secondary);
     }
+
+    svg.icon {
+      margin-right: var(--space-1);
+    }
+
+    .reference-section-title {
+      .explorer-text();
+    }
+  }
+
+  .reference-count {
+    flex-shrink: 0;
+    min-width: 20px;
+    height: 16px;
+    padding: 0 5px;
+    border-radius: var(--radius-pill);
+    background-color: var(--active);
+    color: var(--text-secondary);
+    font-weight: var(--font-weight-medium);
+    letter-spacing: 0;
+    line-height: 16px;
+    text-align: center;
+  }
+
+  // Aligned with the names of the items, after the space of their icon
+  li.reference-empty {
+    height: 26px;
+    padding-left: calc(var(--space-2) + @icon-size + var(--space-2));
+    color: var(--text-muted);
+    font-size: var(--font-size-sm);
+    line-height: 26px;
   }
 }
-

@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { StashItem } from './stash-item';
+import { ReferenceSection } from './reference-section';
 import { RepoWrapper, Stash, Commit } from '../helpers/repo-wrapper';
 
 export interface StashListProps {
@@ -36,15 +37,12 @@ export class StashList extends React.PureComponent<StashListProps, StashListStat
         key={stash.commit.sha()} />
     ));
     return (
-      <>
-        <h3 onClick={this.handleClick}>
-          Stashes
-          <span>{this.state.hide ? '+' : '\u2212'}</span>
-        </h3>
-        <ul className={this.state.hide ? 'hidden' : ''}>
-          {stashItems}
-        </ul>
-      </>
+      <ReferenceSection title='Stashes'
+        count={stashItems.length}
+        collapsed={this.state.hide}
+        onToggle={this.handleClick}>
+        {stashItems}
+      </ReferenceSection>
     );
   }
 }
