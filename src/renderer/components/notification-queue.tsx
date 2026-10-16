@@ -32,13 +32,9 @@ export class NotificationQueue extends React.PureComponent<{}, NotificationQueue
   }
 
   removeNotification(id: number) {
-    this.setState((prevState) => {
-      const notifications = prevState.notifications.slice();
-      notifications.splice(notifications.findIndex((notification) => notification.id === id), 1);
-      return {
-        notifications: notifications
-      };
-    });
+    this.setState((prevState) => ({
+      notifications: prevState.notifications.filter((notification) => notification.id !== id)
+    }));
   }
 
   render() {
@@ -51,8 +47,9 @@ export class NotificationQueue extends React.PureComponent<{}, NotificationQueue
         key={notification.id} />
     );
 
+    // A live region must be in the page before its content, so the list is rendered even when it is empty
     return (
-      <ul className='notification-queue'>
+      <ul className='notification-queue' aria-live='polite' aria-label='Notifications'>
         {notificationItems}
       </ul>
     );

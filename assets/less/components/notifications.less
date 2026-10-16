@@ -1,70 +1,116 @@
-// TODO(restyle): legacy styles moved here unchanged, they still use the old theme variables
-
 /* Notifications */
 
-@notification-item-width: 400px;
-@notification-padding: 16px;
-@notification-border-size: 1px;
+@notification-width: 360px;
+// Height of a line of the message, the icon and the dismiss button are centered on the first one
+@notification-line-height: 18px;
+@notification-button-size: 22px;
 
+// Toasts at the top right of the window, below the toolbar, above the dialogs
 ul.notification-queue {
-  position: absolute;
-  top: 0;
-  left: calc(100% - @notification-item-width);
-  width: 2 * @notification-item-width;
-  z-index: 5;
+  position: fixed;
+  top: calc(@toolbar-height + var(--space-3));
+  right: var(--space-3);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: @notification-width;
+  max-width: calc(100vw - 2 * var(--space-3));
+  margin: 0;
+  padding: 0;
   list-style: none;
-  margin: 16px 0px;
-  padding: 0px;
+  // The clicks go through the empty parts of the queue
+  pointer-events: none;
+}
 
-  li {
-    width: calc(50% - 2 * (@notification-padding + @notification-border-size));
-    padding: @notification-padding;
-    margin: 8px 0px;
-    margin-left: 50%;
-    transition: margin-left 1s 0s;
-    border: 1px solid var(--border-color);
-    background: var(--background-color);
-    box-shadow: 0px 0px 2px 2px rgba(0, 0, 0, 0.2);
+li.notification {
+  // The accent bar is an inset shadow, so that it follows the rounded corners
+  .notification-accent(@color) {
+    box-shadow: inset 3px 0 0 @color, var(--shadow-md);
+  }
 
-    &.shown {
-      margin-left: 0px;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background-color: var(--surface-1);
+  color: var(--text-primary);
+  pointer-events: auto;
+  animation: notification-enter var(--duration) var(--easing);
+  transition: opacity var(--duration) var(--easing), transform var(--duration) var(--easing);
+
+  &.information {
+    .notification-accent(var(--accent));
+
+    svg.notification-icon {
+      color: var(--accent-text);
     }
+  }
 
-    &:hover {
-      background: var(--hover-color);
+  &.error {
+    .notification-accent(var(--danger));
+
+    svg.notification-icon {
+      color: var(--danger);
     }
+  }
 
-    &.information {
-      color: var(--notification-font-color);
-      background-color: var(--info-notification-background-color);
-      border-color: var(--info-notification-border-color);
+  &.leaving {
+    opacity: 0;
+    transform: translateX(calc(100% + var(--space-3)));
+  }
 
-      &:hover {
-        background-color: var(--info-notification-background-color);
-        border-color: var(--info-notification-background-color);
-      }
+  svg.notification-icon {
+    margin-top: ((@notification-button-size - @icon-size) / 2);
+  }
 
-      &:active {
-        background-color: var(--info-notification-border-color);
-        border-color: var(--info-notification-background-color);
-      }
-    }
+  div.notification-message {
+    flex: 1;
+    min-width: 0;
+    padding: ((@notification-button-size - @notification-line-height) / 2) 0;
+    line-height: @notification-line-height;
+    // The message can be copied, the line breaks of git are kept and the long paths wrap
+    user-select: text;
+    cursor: text;
+    overflow-wrap: anywhere;
+    white-space: pre-line;
+  }
 
-    &.error {
-      color: var(--notification-font-color);
-      background-color: var(--error-notification-background-color);
-      border-color: var(--error-notification-border-color);
+  // A title above the details, as in "Unable to push" above the message of git
+  p.notification-title:not(:last-child) {
+    font-weight: var(--font-weight-semibold);
+  }
 
-      &:hover {
-        background-color: var(--error-notification-background-color);
-        border-color: var(--error-notification-background-color);
-      }
+  // The output of git can be long, it scrolls past a few lines
+  p.notification-details {
+    max-height: 8 * @notification-line-height;
+    margin-top: 2px;
+    overflow-y: auto;
+  }
 
-      &:active {
-        background-color: var(--error-notification-border-color);
-        border-color: var(--error-notification-background-color);
-      }
-    }
+  button.notification-dismiss {
+    flex: none;
   }
 }
 
+@keyframes notification-enter {
+  from {
+    opacity: 0;
+    transform: translateX(calc(100% + var(--space-3)));
+  }
+}
+
+@keyframes notification-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  // A fade instead of the slide, the exit transition is already turned off
+  li.notification {
+    animation-name: notification-fade-in;
+  }
+}
