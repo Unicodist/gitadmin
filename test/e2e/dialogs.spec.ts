@@ -28,12 +28,6 @@ async function pickContextMenuItem(label: string) {
   }, label);
 }
 
-// The app ignores the commands of the menu until it is rendered
-async function sendCommand(command: string) {
-  await page.getByRole('heading', { name: 'Start' }).waitFor();
-  await sendMenuCommand(app, command);
-}
-
 function createTempDir() {
   const path = fs.realpathSync.native(fs.mkdtempSync(Path.join(os.tmpdir(), 'gitadmin-dialogs-')));
   cleanup.push(path);
@@ -168,7 +162,7 @@ test('clones a repository in the folder that the dialog shows', async () => {
   cleanup.push(origin);
   const location = createTempDir();
   const name = Path.basename(origin);
-  await sendCommand('clone-repo');
+  await sendMenuCommand(app, 'clone-repo');
   const dialog = page.getByRole('dialog', { name: 'Clone a repo' });
   const url = dialog.getByLabel('Repository URL');
   const path = dialog.locator('.repo-path');
@@ -198,7 +192,7 @@ test('clones a repository in the folder that the dialog shows', async () => {
 
 test('initializes a repository in the folder that the dialog shows', async () => {
   const location = createTempDir();
-  await sendCommand('init-repo');
+  await sendMenuCommand(app, 'init-repo');
   const dialog = page.getByRole('dialog', { name: 'Initialize a repo' });
   const name = dialog.getByLabel('Name', { exact: true });
   const path = dialog.locator('.repo-path');
@@ -234,7 +228,7 @@ test('renames a branch with the input dialog', async () => {
 });
 
 test('goes through the sections of the preferences with the keyboard and applies the theme', async () => {
-  await sendCommand('preferences');
+  await sendMenuCommand(app, 'preferences');
   const dialog = page.getByRole('dialog', { name: 'Preferences' });
   const tabs = dialog.getByRole('tab');
   await expect(tabs).toHaveText(['Profile', 'Authentication', 'Appearance', 'Editor']);

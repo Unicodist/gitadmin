@@ -53,6 +53,8 @@ export async function launchApp(options: LaunchOptions = {}): Promise<LaunchedAp
 
 // Sends a command of the application menu: clone-repo, init-repo, open-repo or preferences
 export async function sendMenuCommand(app: ElectronApplication, command: string) {
+  // The renderer ignores the commands that arrive before the app is rendered
+  await (await app.firstWindow()).locator('div#app').waitFor();
   await app.evaluate(({ BrowserWindow }, command) => BrowserWindow.getAllWindows()[0].webContents.send(command), command);
 }
 
