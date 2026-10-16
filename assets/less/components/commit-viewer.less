@@ -1,85 +1,286 @@
-// TODO(restyle): legacy styles moved here unchanged, they still use the old theme variables
+/* Right viewers */
+
+// The commit viewer and the index viewer take turns in the right panel, they share its header,
+// its body and the style of its sections
+
+@viewer-header-height: 40px;
+
+// Labels of the sections, like the headers of the sections of the reference explorer
+.viewer-label() {
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.04em;
+  line-height: var(--line-height-tight);
+  text-transform: uppercase;
+}
+
+.commit-viewer {
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  width: @commit-viewer-min-width;
+  min-width: @commit-viewer-min-width;
+  background-color: var(--surface-0);
+  user-select: text;
+
+  .viewer-header {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    height: @viewer-header-height;
+    padding: 0 var(--space-3);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .viewer-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
+    line-height: var(--line-height-tight);
+  }
+
+  .viewer-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding: var(--space-3);
+  }
+
+  .section-label {
+    .viewer-label();
+  }
+
+  .section-header {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    min-height: var(--control-height-sm);
+    margin-bottom: var(--space-2);
+
+    .section-label {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    button {
+      flex: none;
+    }
+  }
+}
 
 /* Commit viewer */
 
 .commit-viewer {
-  width: @commit-viewer-min-width;
-  min-width: @commit-viewer-min-width;
-  display: flex;
-  flex-direction: column;
-  background: var(--background-color);
-  z-index: 4;
-  user-select: text;
-
-  h3 {
-    margin: 4px 0;
-    text-align: center;
-    font-size: var(--font-size);
+  // Its text sits at the padding of the header, like the title
+  button.sha-button {
+    margin-right: calc(-1 * var(--space-2));
+    color: var(--text-secondary);
     font-weight: normal;
+
+    .mono {
+      font-size: var(--font-size-sm);
+    }
+
+    // The tooltip says Copy, then Copied, for the keyboard too
+    &:focus-visible .tooltip-text {
+      visibility: visible;
+      opacity: 1;
+    }
   }
 
-  div.commit-message {
-    max-height: 100px;
-    overflow-y: auto;
-    background: var(--list-background-color);
-    border: 1px solid var(--border-color);
-    margin: 8px;
-    padding: 8px;
+  // The summary stays visible, a long description scrolls
+  .commit-message {
+    flex: 0 1 auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    min-height: 0;
+    max-height: 40%;
+    padding: var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background-color: var(--surface-1);
 
     h2 {
-      margin: 0px;
+      flex: none;
+      font-size: var(--font-size-md);
+      overflow-wrap: anywhere;
     }
 
     pre {
-      font-size: 13px;
-      font-family: var(--font-famliy);
-      margin: 8px 0px 0px 0px;
+      min-height: 0;
+      margin: 0;
+      overflow-y: auto;
+      color: var(--text-secondary);
+      font-family: var(--font-mono);
+      font-size: var(--font-size-sm);
+      line-height: 1.5;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
     }
   }
 
-  p {
-    margin: 4px 8px;
+  // The rows share their columns, so that the values line up after the labels
+  ul.commit-details {
+    flex: none;
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    gap: var(--space-1) var(--space-2);
+    margin: var(--space-3) 0 var(--space-4);
+    // The icons line up with the text of the message card and with the files, inside their borders
+    padding: 0 calc(var(--space-3) + 1px);
+    list-style: none;
+
+    li {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: subgrid;
+      align-items: center;
+      min-height: 24px;
+      color: var(--text-primary);
+      font-size: var(--font-size-sm);
+    }
+
+    svg.icon {
+      color: var(--text-muted);
+    }
   }
 
-  .sha-button {
-    border-bottom: 1px dotted var(--font-color);
+  .commit-detail-label {
+    color: var(--text-secondary);
   }
 
-  .navigate-button {
-    cursor: pointer;
-  }
-
-  div.section-header {
+  // The name and the address share the row, the address is shortened first
+  .commit-author {
+    grid-column: 2 / -1;
     display: flex;
-    position: relative;
-    
-    button {
-      position: absolute;
-      right: 0px;
-    } 
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
 
-    .amend-container {
-      display: flex;
-      position: absolute;
-      right: 0px;
-      margin: 4px 8px;
+    .commit-author-name {
+      flex: none;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-weight: var(--font-weight-medium);
     }
-  } 
 
-  & > input {
-    margin: 4px 8px;
+    a {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
   }
 
-  & > textarea {
-    margin: 4px 8px;
-    resize: none;
-    font-family: var(--font-famliy);
+  .commit-parents {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+  }
+
+  // A parent, it selects its commit
+  button.sha-chip {
+    height: 20px;
+    padding: 0 6px;
+    border-radius: var(--radius-xs);
+    background-color: var(--surface-1);
+    color: var(--accent-text);
+    font-size: var(--font-size-sm);
+    font-weight: normal;
+
+    &:hover {
+      background-color: var(--surface-2);
+      border-color: var(--border-strong);
+    }
+
+    &:active {
+      background-color: var(--surface-3);
+    }
+
+    &:focus-visible .tooltip-text {
+      visibility: visible;
+      opacity: 1;
+    }
+  }
+
+  & > .viewer-body > .section-label {
+    flex: none;
+    margin-bottom: var(--space-2);
   }
 }
 
-/* Index Viewer */
+/* Index viewer */
 
 .index-viewer {
   user-select: none;
-}
 
+  // A merge in progress, the commit button finishes it
+  .merge-state {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    height: 20px;
+    padding: 0 var(--space-2);
+    border-radius: var(--radius-pill);
+    background-color: var(--warning-subtle);
+    color: var(--warning);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  // The lists of the unstaged and staged files share the height left by the commit message
+  .index-section {
+    flex: 1 1 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+
+    & + .index-section {
+      margin-top: var(--space-4);
+    }
+  }
+
+  .commit-form {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-top: var(--space-4);
+
+    .section-header {
+      margin-bottom: 0;
+    }
+
+    .check-field {
+      color: var(--text-secondary);
+      font-size: var(--font-size-sm);
+    }
+  }
+
+  // The buttons of a merge do not fit side by side in a narrow panel, the second one goes below
+  .submit-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-1);
+
+    button {
+      flex: 1 0 auto;
+    }
+  }
+}
