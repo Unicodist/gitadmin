@@ -38,7 +38,7 @@ export function createWidgetHeader(className: string, first: boolean) {
 export interface WidgetButtonOptions {
   label: string;
   // End of the label that narrow headers leave out, like " change" in "Accept current change". It
-  // stays in the name of the button.
+  // stays in the name of the button
   labelEnd?: string;
   title: string;
   classNames?: string[];

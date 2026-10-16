@@ -13,7 +13,7 @@ export function formatFullDate(date: Date, locale?: string, timeZone?: string) {
 
 // Splits the header of a hunk into its range and the context that git writes after it,
 // for instance "@@ -12,7 +12,8 @@ function update() {" into "@@ -12,7 +12,8 @@" and "function update() {".
-// The context of a file with CRLF line endings ends with a carriage return.
+// The context of a file with CRLF line endings ends with a carriage return
 export function splitHunkHeader(header: string): [string, string] {
   const match = /^(@@ [^@]+ @@)(.*)$/s.exec(header);
   return match ? [match[1], match[2].trim()] : [header.trim(), ''];
@@ -37,7 +37,7 @@ export function formatFileSize(size: number) {
 }
 
 // Icon of the file in the header of the patch viewer. It follows the badges of the patch lists:
-// copies and type changes look like modifications.
+// copies and type changes look like modifications
 export function getPatchIcon(status: PatchStatus): IconName {
   switch (status) {
     case PatchStatus.Added:

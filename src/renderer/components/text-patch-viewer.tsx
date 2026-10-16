@@ -378,7 +378,7 @@ export class TextPatchViewer extends React.PureComponent<TextPatchViewerProps, {
   }
 
   // In the hunk view, the original editor is the column of the old line numbers on the left. It gets a view
-  // zone as high as the header of the hunk, which continues the header over the column.
+  // zone as high as the header of the hunk, which continues the header over the column
   createHunkGutter(first: boolean) {
     const node = createWidgetHeader('hunk-gutter', first);
     node.setAttribute('aria-hidden', 'true');
