@@ -38,7 +38,7 @@ You need [Node.js](https://nodejs.org/) 24 (see `.nvmrc`). Git does not need to 
 ```sh
 npm install
 npm start          # build and run the app
-npm test           # unit and integration tests of the git layer
+npm test           # unit tests, and integration tests of the git layer
 npm run test:e2e   # end-to-end tests of the app (uses xvfb-run on Linux CI)
 npm run lint
 npm run typecheck
@@ -61,8 +61,8 @@ Here are some ways, you can contribute to Gitadmin:
 
 ## Screenshots
 
-![Screenshot of graph viewer](https://user-images.githubusercontent.com/934316/53720250-8b845980-3e60-11e9-88fd-24a957062dc4.png)
-![Screenshot of patch viewer](https://user-images.githubusercontent.com/934316/53720255-8c1cf000-3e60-11e9-9caa-86333eb22575.png)
+![Commit graph and index in the light theme](test/e2e/screenshots.spec.ts-snapshots/index-light-linux.png)
+![Diff of a file in the dark theme](test/e2e/screenshots.spec.ts-snapshots/diff-dark-linux.png)
 
 ## License
 
