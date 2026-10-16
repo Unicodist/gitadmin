@@ -1,7 +1,9 @@
 import * as React from 'react';
 import { RepoWrapper, Reference } from '../helpers/repo-wrapper';
 import { createReferenceContextMenu } from '../helpers/reference-context-menu';
+import { IconName } from '../helpers/icons';
 import { InputDialogHandler } from './input-dialog';
+import { Icon } from './icon';
 
 export class ReferenceBadgeProps {
   reference: Reference;
@@ -9,6 +11,15 @@ export class ReferenceBadgeProps {
   selected: boolean;
   repo: RepoWrapper;
   onOpenInputDialog: InputDialogHandler;
+}
+
+export function getReferenceIcon(reference: Reference): IconName {
+  if (reference.isTag()) {
+    return 'tag';
+  } else if (reference.isRemote()) {
+    return 'cloud';
+  }
+  return 'git-branch';
 }
 
 export class ReferenceBadge extends React.PureComponent<ReferenceBadgeProps, {}> {
@@ -30,20 +41,25 @@ export class ReferenceBadge extends React.PureComponent<ReferenceBadgeProps, {}>
   }
 
   render() {
+    const reference = this.props.reference;
+    const name = reference.shorthand();
     const style: Record<string, string> = {};
     style['--branch-color'] = this.props.color;
-    const classNames = ['reference'];
-    if (this.props.reference.isTag()) {
+    const classNames = ['reference-badge'];
+    if (reference.isTag()) {
       classNames.push('tag');
+    } else if (reference.isRemote()) {
+      classNames.push('remote');
     }
     if (this.props.selected) {
-      classNames.push('selected');
+      classNames.push('head');
     }
     return (
-      <span className={classNames.join(' ')} style={style}
+      <span className={classNames.join(' ')} style={style} title={name}
         onContextMenu={this.handleContextMenu}
         onDoubleClick={this.handleDoubleClick}>
-        {this.props.reference.shorthand()}
+        <Icon name={getReferenceIcon(reference)} size={12} />
+        <span className='reference-badge-name'>{name}</span>
       </span>
     );
   }

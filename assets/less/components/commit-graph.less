@@ -1,5 +1,3 @@
-// TODO(restyle): legacy styles moved here unchanged, they still use the old theme variables
-
 /* Graph viewer */
 
 div.graph-viewer {
@@ -10,6 +8,7 @@ div.graph-viewer {
     position: relative;
     flex: 1;
     min-width: calc(var(--canvas-width) + @commit-list-min-width);
+    background-color: var(--surface-1);
   }
 }
 
@@ -22,6 +21,7 @@ div.commit-graph {
   overflow-x: scroll;
   overflow-y: hidden;
 
+  // Transparent, the rows of the list are drawn under it
   canvas {
     position: sticky;
     margin-left: auto;
@@ -31,13 +31,13 @@ div.commit-graph {
     pointer-events: none;
   }
 
+  // Between the graph and the summaries, it looks like the other splitters
   .splitter {
     position: absolute;
     top: 0px;
-    left: calc(var(--canvas-width));
+    left: var(--canvas-width);
     height: 100%;
     z-index: 3;
-    border: 1px dashed var(--splitter-color);
   }
 }
 
@@ -52,32 +52,74 @@ div.commit-list {
   overflow-y: scroll;
   text-align: left;
 
-  ul {
-    margin: 0px;
-    padding-left: 0px;
-    list-style: none;
-    line-height: @commit-list-item-height;
-    background-color: var(--list-background-color);
-    min-height: 100%;
+  // The list is as high as all the commits, the ring is drawn by its visible part
+  &:has(> ul:focus-visible) {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: -2px;
+  }
 
-    li {
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      height: @commit-list-item-height;
-      padding-left: calc(var(--canvas-width) + 16px);
-      padding-top: 3px;
-      padding-bottom: 3px;
-      font-size: 13px;
+  ul {
+    min-height: 100%;
+    margin: 0;
+    padding-left: 0;
+    list-style: none;
+
+    &:focus-visible {
+      outline: none;
+    }
+  }
+
+  // The rows span the whole width, the graph is drawn across them
+  li.commit-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    height: @commit-list-item-height;
+    padding: 0 var(--space-3) 0 calc(var(--canvas-width) + var(--space-4));
+    color: var(--text-primary);
+    white-space: nowrap;
+    transition: background-color var(--duration-fast) var(--easing);
+
+    &:hover {
+      background-color: var(--hover);
+    }
+
+    &.selected-commit {
+      background-color: var(--selected);
 
       &:hover {
-        background: var(--hover-color);
-      }
-
-      &.selected-commit {
-        background: var(--selected-color);
+        background-color: var(--selected-hover);
       }
     }
   }
-}
 
+  // The badges shrink only when the summary has no room left, and leave it some
+  .commit-badges {
+    display: flex;
+    flex: 0 1 auto;
+    gap: var(--space-1);
+    min-width: 0;
+    max-width: 60%;
+  }
+
+  .commit-summary {
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: var(--line-height);
+  }
+
+  li.index-item {
+    gap: var(--space-1);
+
+    .commit-summary {
+      flex: 0 1 auto;
+    }
+
+    .index-state {
+      flex-shrink: 0;
+      color: var(--text-muted);
+    }
+  }
+}

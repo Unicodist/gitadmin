@@ -1,26 +1,57 @@
-// TODO(restyle): legacy styles moved here unchanged, they still use the old theme variables
+/* Reference badges */
 
-/* Reference badge */
+// Pills of the commit list, tinted with the color of the branch in the graph (--branch-color, set by the components)
+div.commit-list {
+  .commit-badge() {
+    display: inline-flex;
+    align-items: center;
+    flex: 0 1 auto;
+    gap: var(--space-1);
+    min-width: 0;
+    max-width: 180px;
+    height: 20px;
+    padding: 0 var(--space-2) 0 6px;
+    border: 1px solid color-mix(in srgb, var(--branch-color) 50%, transparent);
+    border-radius: var(--radius-pill);
+    background-color: color-mix(in srgb, var(--branch-color) 16%, var(--surface-1));
+    color: var(--text-primary);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    transition: background-color var(--duration-fast) var(--easing);
 
-div.commit-list li span.reference {
-  border-radius: 5px;
-  padding: 2px;
-  margin-right: 2px;
-  background-color: var(--branch-color);
-  color: white;
-  user-select: none;
-  filter: brightness(0.8);
-
-  &.tag {
-    border-radius: 0px;
+    // Mixed with the color of the text to stand out from the tint (3:1) in both color schemes
+    svg.icon {
+      color: color-mix(in srgb, var(--branch-color) 80%, var(--text-primary));
+    }
   }
 
-  &:hover {
-    filter: brightness(1);
+  .reference-badge {
+    .commit-badge();
+
+    &:hover {
+      background-color: color-mix(in srgb, var(--branch-color) 24%, var(--surface-1));
+    }
+
+    // The head, the tint stays under 30% for the contrast of the text
+    &.head {
+      background-color: color-mix(in srgb, var(--branch-color) 28%, var(--surface-1));
+      font-weight: var(--font-weight-semibold);
+
+      &:hover {
+        background-color: color-mix(in srgb, var(--branch-color) 30%, var(--surface-1));
+      }
+    }
   }
 
-  &.selected {
-    filter: brightness(1);
+  .reference-badge-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: var(--line-height);
+  }
+
+  .stash-badge {
+    .commit-badge();
+    flex-shrink: 0;
   }
 }
-
