@@ -1,36 +1,35 @@
 import { clipboard } from 'electron';
 import * as React from 'react';
-import * as Git from 'nodegit';
 import { PatchList } from './patch-list';
-import { PatchType, RepoWrapper, shortenSha } from '../helpers/repo-wrapper';
+import { PatchType, RepoWrapper, shortenSha, Commit, Patch } from '../helpers/repo-wrapper';
 import { CancellablePromise, makeCancellable } from '../helpers/make-cancellable';
 
 function formatDate(date: Date) {
   return `${date.toLocaleDateString()} at ${date.toLocaleTimeString()}`;
 }
 
-export interface CommitViewerProps { 
+export interface CommitViewerProps {
   repo: RepoWrapper;
-  commit: Git.Commit;
-  selectedPatch: Git.ConvenientPatch | null;
-  onCommitSelect: (commit: Git.Commit) => void;
-  onPatchSelect: (patch: Git.ConvenientPatch, type: PatchType) => void;
+  commit: Commit;
+  selectedPatch: Patch | null;
+  onCommitSelect: (commit: Commit) => void;
+  onPatchSelect: (patch: Patch, type: PatchType) => void;
 }
 
-export interface CommitViewerState { 
-  patches: Git.ConvenientPatch[];
+export interface CommitViewerState {
+  patches: Patch[];
 }
 
 export class CommitViewer extends React.PureComponent<CommitViewerProps, CommitViewerState> {
-  div: React.RefObject<HTMLDivElement>;
-  patchesPromise: CancellablePromise<Git.ConvenientPatch[]>;
+  div: React.RefObject<HTMLDivElement | null>;
+  patchesPromise: CancellablePromise<Patch[]>;
 
   constructor(props: CommitViewerProps) {
     super(props);
     this.div = React.createRef<HTMLDivElement>();
     this.state = {
       patches: []
-    }
+    };
     this.handlePatchSelect = this.handlePatchSelect.bind(this);
   }
 
@@ -53,7 +52,7 @@ export class CommitViewer extends React.PureComponent<CommitViewerProps, CommitV
     }
   }
 
-  handlePatchSelect(patch: Git.ConvenientPatch) {
+  handlePatchSelect(patch: Patch) {
     this.props.onPatchSelect(patch, PatchType.Committed);
   }
 
@@ -93,7 +92,7 @@ export class CommitViewer extends React.PureComponent<CommitViewerProps, CommitV
     );
   }
 
-  createNavigationButton(commit: Git.Commit) {
+  createNavigationButton(commit: Commit) {
     return (
       <span className='tooltip-bottom sha-button navigate-button' key={commit.sha()} onClick={() => this.props.onCommitSelect(commit)}>
         {shortenSha(commit.sha())}
@@ -116,7 +115,7 @@ export class CommitViewer extends React.PureComponent<CommitViewerProps, CommitV
   render() {
     const commit = this.props.commit;
     const author = commit.author();
-    const authoredDate = new Date(author.when().time() * 1000);
+    const authoredDate = author.date;
     const body = commit.body();
     return (
       <div className='commit-viewer' ref={this.div}>
@@ -125,7 +124,7 @@ export class CommitViewer extends React.PureComponent<CommitViewerProps, CommitV
           <h2>{commit.summary()}</h2>
           {body ? <pre>{body}</pre> : null}
         </div>
-        <p>By {author.name()} &lt;<a href={`mailto:${author.email()}`}>{author.email()}</a>&gt;</p>
+        <p>By {author.name} &lt;<a href={`mailto:${author.email}`}>{author.email}</a>&gt;</p>
         <p>Authored {formatDate(authoredDate)}</p>
         <p>Last modified {formatDate(commit.date())}</p>
         <p>Parents: {this.createNavigationButtons(this.props.repo.parents.get(commit.sha())!)}</p>

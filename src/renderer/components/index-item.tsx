@@ -1,8 +1,7 @@
 import * as React from 'react';
-import * as Git from 'nodegit';
 import { RepoState } from '../helpers/repo-wrapper';
 
-export interface IndexItemProps { 
+export interface IndexItemProps {
   repoState: RepoState;
   selected: boolean;
   onIndexSelect: () => void;
@@ -20,10 +19,10 @@ export class IndexItem extends React.PureComponent<IndexItemProps, {}> {
 
   render() {
     //console.log(this.props.state);
-    let suffix = ''
+    let suffix = '';
     switch (this.props.repoState) {
       case RepoState.Cherrypick:
-        suffix = 'cherrypicking'
+        suffix = 'cherrypicking';
         break;
       case RepoState.Merge:
         suffix = 'merging';

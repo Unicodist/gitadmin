@@ -1,17 +1,13 @@
 import * as React from 'react';
-import * as Git from 'nodegit';
-import { RepoWrapper, PatchType } from '../helpers/repo-wrapper'
+import { RepoWrapper, PatchType, DiffLine, Hunk, Patch } from '../helpers/repo-wrapper';
 import { openInEditor } from '../helpers/open-in-editor';
 import { makeCancellable, CancellablePromise } from '../helpers/make-cancellable';
 import { arePatchesSimilar } from '../helpers/patch-comparison';
+import { loadMonaco } from '../helpers/monaco-loader';
 
 // Load Monaco
 
-const loadMonaco = require('monaco-loader')
 let monaco: any;
-loadMonaco().then((m: any) => {
-  monaco = m;
-});
 
 // TextPatchViewer
 
@@ -33,9 +29,9 @@ export interface TextPatchViewerOptions {
   fontSize: number;
 }
 
-export interface TextPatchViewerProps { 
+export interface TextPatchViewerProps {
   repo: RepoWrapper;
-  patch: Git.ConvenientPatch;
+  patch: Patch;
   oldString: string;
   newString: string;
   type: PatchType;
@@ -44,15 +40,15 @@ export interface TextPatchViewerProps {
 }
 
 export class TextPatchViewer extends React.PureComponent<TextPatchViewerProps, {}> {
-  divEditor: React.RefObject<HTMLDivElement>;
+  divEditor: React.RefObject<HTMLDivElement | null>;
   editor: any;
   viewMode: ViewMode;
   viewZoneIds: number[][];
   overlayWidgets: any[][];
   actionDisposables: any[];
-  hunks: Git.ConvenientHunk[];
-  lines: Git.DiffLine[];
-  loadingPromise: CancellablePromise<[Git.ConvenientHunk[], Git.DiffLine[]]>;
+  hunks: Hunk[];
+  lines: DiffLine[];
+  loadingPromise: CancellablePromise<[Hunk[], DiffLine[]]>;
   marginButtonsDirty: boolean;
 
   constructor(props: TextPatchViewerProps) {
@@ -79,9 +75,13 @@ export class TextPatchViewer extends React.PureComponent<TextPatchViewerProps, {
   }
 
   componentDidUpdate(prevProps: TextPatchViewerProps) {
+    // The editor is created once Monaco is loaded
+    if (!this.editor) {
+      return;
+    }
     // Only load if the patch has changed
     if (this.props.patch !== prevProps.patch) {
-      const scrollTop = arePatchesSimilar(prevProps.patch, this.props.patch) ? 
+      const scrollTop = arePatchesSimilar(prevProps.patch, this.props.patch) ?
         this.editor.getModifiedEditor().getScrollTop() :
         0;
       this.loadAndUpdate(scrollTop);
@@ -89,7 +89,7 @@ export class TextPatchViewer extends React.PureComponent<TextPatchViewerProps, {
       this.updateEditor(this.editor.getModifiedEditor().getScrollTop());
     }
     if (this.props.editorTheme !== prevProps.editorTheme) {
-      monaco.editor.setTheme(this.props.editorTheme); 
+      monaco.editor.setTheme(this.props.editorTheme);
     }
     if (this.props.options !== prevProps.options) {
       this.editor.updateOptions(this.props.options);
@@ -140,15 +140,15 @@ export class TextPatchViewer extends React.PureComponent<TextPatchViewerProps, {
   }
 
   handleOpenInEditor() {
-    openInEditor(this.props.patch.newFile().path());
+    openInEditor(this.props.patch.newFile.path);
   }
 
   handleMarginButtonClick(i: number, editor: Editor) {
-    let line: Git.DiffLine | undefined;
+    let line: DiffLine | undefined;
     if (editor === Editor.Original) {
-      line = this.lines.find((line) => line.oldLineno() === i);
+      line = this.lines.find((line) => line.oldLineno === i);
     } else if (editor === Editor.Modified) {
-      line = this.lines.find((line) => line.newLineno() === i);
+      line = this.lines.find((line) => line.newLineno === i);
     }
     if (line) {
       if (this.props.type === PatchType.Unstaged) {
@@ -171,7 +171,8 @@ export class TextPatchViewer extends React.PureComponent<TextPatchViewerProps, {
     }
   }
 
-  setUpEditor() {
+  async setUpEditor() {
+    monaco = await loadMonaco();
     if (this.divEditor.current) {
       const options = {
         theme: this.props.editorTheme,
@@ -179,8 +180,8 @@ export class TextPatchViewer extends React.PureComponent<TextPatchViewerProps, {
         renderSideBySide: false,
         readOnly: true,
         ...this.props.options
-      }
-      this.editor = monaco.editor.createDiffEditor(this.divEditor.current, options)
+      };
+      this.editor = monaco.editor.createDiffEditor(this.divEditor.current, options);
       this.editor.onDidUpdateDiff(() => this.updateMarginButtons());
       this.loadAndUpdate(0);
     }
@@ -208,9 +209,8 @@ export class TextPatchViewer extends React.PureComponent<TextPatchViewerProps, {
       // Load hunks
       const hunks = await this.props.patch.hunks();
       // Load lines
-      const lines = (await Promise.all(hunks.map((hunk) => hunk.lines())))
-        .reduce((acc, value) => acc.concat(value), []);
-      return [hunks, lines] as [Git.ConvenientHunk[], Git.DiffLine[]];
+      const lines = hunks.flatMap((hunk) => hunk.lines);
+      return [hunks, lines] as [Hunk[], DiffLine[]];
     })());
   }
 
@@ -226,7 +226,7 @@ export class TextPatchViewer extends React.PureComponent<TextPatchViewerProps, {
     // Update models
     this.setModels();
     if (this.viewMode === ViewMode.Hunk && this.hunks.length > 0) {
-      await this.customizeHunkView(); 
+      await this.customizeHunkView();
     }
     // Scroll
     this.editor.getModifiedEditor().setScrollTop(scrollTop);
@@ -240,19 +240,19 @@ export class TextPatchViewer extends React.PureComponent<TextPatchViewerProps, {
     for (let i = 0; i < Editor.Count; ++i) {
       const editor = editors[i];
       editor.changeViewZones((changeAccessor: any) => {
-        for (let viewZoneId of this.viewZoneIds[i]) {
+        for (const viewZoneId of this.viewZoneIds[i]) {
           changeAccessor.removeZone(viewZoneId);
         }
       });
       this.viewZoneIds[i] = [];
       // Reset overlay widgets
-      for (let overlayWidget of this.overlayWidgets[i]) {
+      for (const overlayWidget of this.overlayWidgets[i]) {
         editor.removeOverlayWidget(overlayWidget);
       }
       this.overlayWidgets[i] = [];
     }
     // Reset context menu
-    for (let actionDisposable of this.actionDisposables) {
+    for (const actionDisposable of this.actionDisposables) {
       actionDisposable.dispose();
     }
     this.actionDisposables = [];
@@ -265,19 +265,21 @@ export class TextPatchViewer extends React.PureComponent<TextPatchViewerProps, {
       const uri = monaco.Uri.parse(`file://${prefix}/${path}`);
       return monaco.editor.createModel(value, undefined, uri);
     }
-    
+
     const patch = this.props.patch;
     this.disposeModels();
-    const originalModel = createModel('a', patch.oldFile().path(), this.props.oldString);
-    const modifiedModel = createModel('b', patch.newFile().path(), this.props.newString);
+    const originalModel = createModel('a', patch.oldFile.path, this.props.oldString);
+    const modifiedModel = createModel('b', patch.newFile.path, this.props.newString);
     this.editor.setModel({
-      original: originalModel, 
+      original: originalModel,
       modified: modifiedModel
     });
   }
 
   disposeModels() {
     const model = this.editor.getModel();
+    // The diff editor must release the models before they are disposed
+    this.editor.setModel(null);
     if (model) {
       if (model.original) {
         model.original.dispose();
@@ -303,7 +305,7 @@ export class TextPatchViewer extends React.PureComponent<TextPatchViewerProps, {
           isSetHiddenAreasScheduled = true;
           scheduleSetHiddenAreas();
         }
-      }
+      };
       const scheduleSetHiddenAreas = () => {
         if (Date.now() - lastUpdate < 200) {
           setTimeout(scheduleSetHiddenAreas, 50);
@@ -314,7 +316,7 @@ export class TextPatchViewer extends React.PureComponent<TextPatchViewerProps, {
           this.setHiddenAreas();
           resolve();
         }
-      }
+      };
 
       // Listen to onDidChangeModelDecorations events
       // Apparently, the original editor is always updated first
@@ -333,7 +335,7 @@ export class TextPatchViewer extends React.PureComponent<TextPatchViewerProps, {
   createHunkWidgets() {
     // Create widgets
     const overlayWidgets: any[] = [];
-    for (let i = 0; i < this.hunks.length; ++i) { 
+    for (let i = 0; i < this.hunks.length; ++i) {
       const hunk = this.hunks[i];
       const id = `hunk.${this.overlayWidgets[Editor.Modified].length}`;
       const repo = this.props.repo;
@@ -344,7 +346,7 @@ export class TextPatchViewer extends React.PureComponent<TextPatchViewerProps, {
 
       const contentNode = document.createElement('div');
       const textNode = document.createElement('p');
-      textNode.textContent = `@@ -${hunk.oldStart()},${hunk.oldLines()} +${hunk.newStart()},${hunk.newLines()}`;
+      textNode.textContent = `@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines}`;
       contentNode.appendChild(textNode);
       if (this.props.type === PatchType.Unstaged) {
         const buttonsNode = document.createElement('div');
@@ -389,14 +391,14 @@ export class TextPatchViewer extends React.PureComponent<TextPatchViewerProps, {
 
         // Used only to compute the position.
         this.viewZoneIds[Editor.Modified].push(changeAccessor.addZone({
-          afterLineNumber: i === 0 ? 0 : this.hunks[i].newStart() - 1,
+          afterLineNumber: i === 0 ? 0 : this.hunks[i].newStart - 1,
           heightInLines: 2,
           domNode: document.createElement('div'),
           onDomNodeTop: (top: number) => {
-            overlayWidget.getDomNode().style.top = top + "px";
+            overlayWidget.getDomNode().style.top = top + 'px';
           },
           onComputedHeight: (height: number) => {
-            overlayWidget.getDomNode().style.height = height + "px";
+            overlayWidget.getDomNode().style.height = height + 'px';
           }
         }));
       }
@@ -407,8 +409,8 @@ export class TextPatchViewer extends React.PureComponent<TextPatchViewerProps, {
     function createRange(start: number, end: number) {
       return {
         startLineNumber: start,
-        endLineNumber: end 
-      }
+        endLineNumber: end
+      };
     }
 
     // Compute hidden areas
@@ -416,15 +418,15 @@ export class TextPatchViewer extends React.PureComponent<TextPatchViewerProps, {
     const oldHiddenAreas = [];
     let newStart = 1;
     const newHiddenAreas = [];
-    for (let hunk of this.hunks) {
-      if (hunk.oldStart() - 1 >= oldStart) {
-        oldHiddenAreas.push(createRange(oldStart, hunk.oldStart() - 1));
+    for (const hunk of this.hunks) {
+      if (hunk.oldStart - 1 >= oldStart) {
+        oldHiddenAreas.push(createRange(oldStart, hunk.oldStart - 1));
       }
-      oldStart = hunk.oldStart() + hunk.oldLines();
-      if (hunk.newStart() - 1 >= newStart) {
-        newHiddenAreas.push(createRange(newStart, hunk.newStart() - 1));
+      oldStart = hunk.oldStart + hunk.oldLines;
+      if (hunk.newStart - 1 >= newStart) {
+        newHiddenAreas.push(createRange(newStart, hunk.newStart - 1));
       }
-      newStart = hunk.newStart() + hunk.newLines();
+      newStart = hunk.newStart + hunk.newLines;
     }
     if (oldStart <= this.props.oldString.split('\n').length) {
       oldHiddenAreas.push(createRange(oldStart, Infinity));
@@ -462,15 +464,17 @@ export class TextPatchViewer extends React.PureComponent<TextPatchViewerProps, {
         run: this.handleSelectedLinesUnstage
       }));
     }
-  } 
+  }
 
   updateMarginButtons() {
     if (this.marginButtonsDirty && this.props.type !== PatchType.Committed && this.viewMode === ViewMode.Hunk) {
-      this.createMarginButtons()
-      this.marginButtonsDirty = false;
+      // The line changes are not available until the diff is computed
+      if (this.createMarginButtons()) {
+        this.marginButtonsDirty = false;
+      }
     }
   }
-  
+
   createMarginButtons() {
     const className = this.props.type === PatchType.Unstaged ? 'stage-line-button' : 'unstage-line-button';
     const editors = [this.editor.getOriginalEditor(), this.editor.getModifiedEditor()];
@@ -498,13 +502,17 @@ export class TextPatchViewer extends React.PureComponent<TextPatchViewerProps, {
           heightInLines: 0,
           domNode: document.createElement('div'),
           onDomNodeTop: (top: number) => {
-            overlayNode.style.top = top - LINE_HEIGHT + "px";
+            overlayNode.style.top = top - LINE_HEIGHT + 'px';
           }
         }));
       });
-    }
+    };
 
-    for (let line of this.editor.getLineChanges()) {
+    const lineChanges = this.editor.getLineChanges();
+    if (!lineChanges) {
+      return false;
+    }
+    for (const line of lineChanges) {
       for (let i = line.originalStartLineNumber; i <= line.originalEndLineNumber; ++i) {
         createMarginButton(Editor.Original, i, 'old');
       }
@@ -512,12 +520,13 @@ export class TextPatchViewer extends React.PureComponent<TextPatchViewerProps, {
         createMarginButton(Editor.Modified, i, 'new');
       }
     }
+    return true;
   }
 
   async getSelectedLines(editor: any) {
     const selection = editor.getSelection();
-    const start = this.lines.findIndex((line) => line.newLineno() === selection.startLineNumber);
-    const end = this.lines.findIndex((line) => line.newLineno() === selection.endLineNumber);
+    const start = this.lines.findIndex((line) => line.newLineno === selection.startLineNumber);
+    const end = this.lines.findIndex((line) => line.newLineno === selection.endLineNumber);
     const selectedLines = this.lines.slice(start, end + 1);
     return selectedLines;
   }
@@ -541,11 +550,11 @@ export class TextPatchViewer extends React.PureComponent<TextPatchViewerProps, {
             <button onClick={this.handleOpenInEditor}>Open in editor</button>
           </div>
           <div className="view-mode-selector">
-            <input type="radio" id="hunk-mode" name="view-mode-selector" 
+            <input type="radio" id="hunk-mode" name="view-mode-selector"
               defaultChecked={this.viewMode === ViewMode.Hunk}
               onInput={this.handleViewModeChange.bind(this, ViewMode.Hunk)} />
             <label htmlFor="hunk-mode">Hunk</label >
-            <input type="radio" id="inline-mode" name="view-mode-selector" 
+            <input type="radio" id="inline-mode" name="view-mode-selector"
               defaultChecked={this.viewMode === ViewMode.Inline}
               onInput={this.handleViewModeChange.bind(this, ViewMode.Inline)} />
             <label htmlFor="inline-mode">Inline</label>

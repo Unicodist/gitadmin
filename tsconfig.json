@@ -1,29 +1,26 @@
 {
   "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
     "removeComments": false,
     "preserveConstEnums": true,
     "sourceMap": true,
-    "declaration": true,
+    "strict": false,
     "noImplicitAny": true,
     "noImplicitReturns": true,
-    "suppressImplicitAnyIndexErrors": true,
     "strictNullChecks": true,
     "noUnusedLocals": true,
     "noImplicitThis": true,
     "noUnusedParameters": true,
     "importHelpers": true,
-    "noEmitHelpers": true,
-    "module": "commonjs",
-    "moduleResolution": "node",
-    "pretty": true,
-    "target": "es2015",
-    "jsx": "react"
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "target": "es2023",
+    "lib": ["es2023", "dom", "dom.iterable"],
+    "jsx": "react",
+    "types": ["node"]
   },
-  "formatCodeOptions": {
-    "indentSize": 2,
-    "tabSize": 2
-  },
-  "exclude": [
-    "**/out/"
-  ]
+  "include": ["src"]
 }

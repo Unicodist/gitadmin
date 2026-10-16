@@ -43,7 +43,7 @@ export class NotificationQueue extends React.PureComponent<{}, NotificationQueue
 
   render() {
     // Notification items
-    const notificationItems = this.state.notifications.map((notification) => 
+    const notificationItems = this.state.notifications.map((notification) =>
       <NotificationItem message={notification.message}
         type={notification.type}
         onRemove={this.removeNotification}

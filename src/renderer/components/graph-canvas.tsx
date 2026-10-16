@@ -9,12 +9,12 @@ const LINE_WIDTH = 2;
 const INNER_RADIUS = RADIUS - LINE_WIDTH / 2;
 const DASH_LENGTH = 2 * Math.PI * INNER_RADIUS / 32;
 
-export interface GraphCanvasProps { 
-  repo: RepoWrapper; 
+export interface GraphCanvasProps {
+  repo: RepoWrapper;
 }
 
 export class GraphCanvas extends React.PureComponent<GraphCanvasProps, {}> {
-  canvas: React.RefObject<HTMLCanvasElement>;
+  canvas: React.RefObject<HTMLCanvasElement | null>;
   offset: number;
   start: number;
   end: number;
@@ -37,7 +37,7 @@ export class GraphCanvas extends React.PureComponent<GraphCanvasProps, {}> {
         canvas.height = height;
         this.handleRangeUpdate(start, end);
       }
-    } 
+    }
   }
 
   handleRangeUpdate(start: number , end: number) {
@@ -61,7 +61,7 @@ export class GraphCanvas extends React.PureComponent<GraphCanvasProps, {}> {
     }
   }
 
-  // Index 
+  // Index
 
   drawIndexNode(ctx: CanvasRenderingContext2D) {
     // Set the style
@@ -81,12 +81,12 @@ export class GraphCanvas extends React.PureComponent<GraphCanvasProps, {}> {
     const positions = repo.graph.positions;
     // Draw the edge between the index and the head commit
     if (repo.headCommit) {
-      let [x0, y0] = this.computeNodeCenterCoordinates(0, 0);
-      y0 += RADIUS;
+      const [x0, yIndex] = this.computeNodeCenterCoordinates(0, 0);
+      const y0 = yIndex + RADIUS;
       const node = positions.get(repo.headCommit.sha())!;
       if (!node) {
-        console.error(`Unable to draw index edge: position of head is undefined.\n` + 
-          `Head\'s commit: ${repo.headCommit.sha()}.\n` + 
+        console.error('Unable to draw index edge: position of head is undefined.\n' +
+          `Head's commit: ${repo.headCommit.sha()}.\n` +
           `Heads's branch: ${repo.head ? repo.head.name() : ''}`);
         return;
       }
@@ -109,10 +109,10 @@ export class GraphCanvas extends React.PureComponent<GraphCanvasProps, {}> {
 
   drawNodes(ctx: CanvasRenderingContext2D) {
     // Draw only visible nodes
-    const positions = this.props.repo.commits.slice(Math.max(this.start, 0), this.end).map((commit) => 
+    const positions = this.props.repo.commits.slice(Math.max(this.start, 0), this.end).map((commit) =>
       this.props.repo.graph.positions.get(commit.sha())!
     );
-    for (let [i, j, type] of positions) {
+    for (const [i, j, type] of positions) {
       const [x, y] = this.computeNodeCenterCoordinates(i, j);
       ctx.fillStyle = getBranchColor(j);
       ctx.beginPath();
@@ -130,7 +130,7 @@ export class GraphCanvas extends React.PureComponent<GraphCanvasProps, {}> {
     const edges = repo.graph.edges;
     ctx.lineWidth = LINE_WIDTH;
     ctx.setLineDash([]);
-    for (let [[i0, j0], [i1, j1], type] of edges.search(this.start, this.end)) {
+    for (const [[i0, j0], [i1, j1], type] of edges.search(this.start, this.end)) {
       const [x0, y0] = this.computeNodeCenterCoordinates(i0, j0);
       const [x1, y1] = this.computeNodeCenterCoordinates(i1, j1);
       ctx.beginPath();
@@ -165,7 +165,7 @@ export class GraphCanvas extends React.PureComponent<GraphCanvasProps, {}> {
   }
 
   computeNodeCenterCoordinates(i: number, j: number) {
-    return [j * OFFSET_X + RADIUS, 3 + i * OFFSET_Y + RADIUS - this.offset]
+    return [j * OFFSET_X + RADIUS, 3 + i * OFFSET_Y + RADIUS - this.offset];
   }
 
   render() {

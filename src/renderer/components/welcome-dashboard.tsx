@@ -25,16 +25,16 @@ export class WelcomeDashboard extends React.PureComponent<WelcomeDashboardProps,
     const recentlyOpenedItems = Settings.get(Field.RecentlyOpened, [])
       .map((path: string) => {
         const relativePath = Path.relative(homeDir, path);
-        const formattedPath = relativePath.startsWith('..') ? 
-          Path.normalize(getWorkingDirectory(path)) : 
+        const formattedPath = relativePath.startsWith('..') ?
+          Path.normalize(getWorkingDirectory(path)) :
           `~${Path.sep}${getWorkingDirectory(relativePath)}`;
         const i = formattedPath.lastIndexOf(Path.sep);
         return (
-          <div className='action' 
+          <div className='action'
             onClick={() => this.props.onRecentlyOpenedRepoClick(path)}
             key={path}>
             <h3>{getRepoName(path)}</h3>
-            <p> 
+            <p>
               <span className='ellipsis-middle'>
                 <span className='left'>{formattedPath.substr(0, i)}</span>
                 <span className='right'>{formattedPath.substr(i)}</span>

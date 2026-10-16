@@ -1,20 +1,19 @@
 import * as React from 'react';
-import * as Git from 'nodegit';
 import { CommitItem } from './commit-item';
 import { IndexItem } from './index-item';
 import { InputDialogHandler } from './input-dialog';
-import { RepoWrapper, RepoState } from '../helpers/repo-wrapper';
+import { RepoWrapper, RepoState, Commit } from '../helpers/repo-wrapper';
 import { getBranchColor } from '../helpers/commit-graph';
 
 const ITEM_HEIGHT = 28;
 
-export interface CommitListProps { 
+export interface CommitListProps {
   repo: RepoWrapper;
   repoState: RepoState;
-  selectedCommit: Git.Commit | null;
-  onCommitSelect: (commit: Git.Commit) => void;
+  selectedCommit: Commit | null;
+  onCommitSelect: (commit: Commit) => void;
   onIndexSelect: () => void;
-  onCreateBranch: (commit: Git.Commit) => void;
+  onCreateBranch: (commit: Commit) => void;
   onOpenInputDialog: InputDialogHandler;
   onScroll: (height: number, start: number, end: number) => void;
   onResize: (offset: number, start: number, end: number) => void;
@@ -27,7 +26,7 @@ export interface CommitListState {
 }
 
 export class CommitList extends React.PureComponent<CommitListProps, CommitListState> {
-  div: React.RefObject<HTMLDivElement>;
+  div: React.RefObject<HTMLDivElement | null>;
   resizeObserver: ResizeObserver;
 
   constructor(props: CommitListProps) {
@@ -36,7 +35,7 @@ export class CommitList extends React.PureComponent<CommitListProps, CommitListS
     this.state = {
       start: 0,
       end: 0
-    }
+    };
     this.handleScroll = this.handleScroll.bind(this);
     this.handleResize = this.handleResize.bind(this);
     this.handleKeyUp = this.handleKeyUp.bind(this);
@@ -81,15 +80,15 @@ export class CommitList extends React.PureComponent<CommitListProps, CommitListS
       let i = this.getIndexOfSelectedCommit();
       i = Math.max(i - 1, -1);
       if (i >= 0) {
-        this.props.onCommitSelect(this.props.repo.commits[i])
+        this.props.onCommitSelect(this.props.repo.commits[i]);
       } else {
         this.props.onIndexSelect();
       }
     } else if (event.keyCode === 40) {
-      let i = this.props.selectedCommit ? 
+      let i = this.props.selectedCommit ?
         this.props.repo.shaToIndex.get(this.props.selectedCommit.sha())! : -1;
       i = Math.min(i + 1, this.props.repo.commits.length - 1);
-      this.props.onCommitSelect(this.props.repo.commits[i])
+      this.props.onCommitSelect(this.props.repo.commits[i]);
     }
   }
 
@@ -123,7 +122,7 @@ export class CommitList extends React.PureComponent<CommitListProps, CommitListS
     // Take account of the index
     const top = div.scrollTop - ITEM_HEIGHT;
     const start = Math.floor(top / ITEM_HEIGHT);
-    const end = Math.min(Math.ceil((top + div.clientHeight) / ITEM_HEIGHT), 
+    const end = Math.min(Math.ceil((top + div.clientHeight) / ITEM_HEIGHT),
       this.props.repo.commits.length);
     return {
       start: start,
@@ -132,31 +131,31 @@ export class CommitList extends React.PureComponent<CommitListProps, CommitListS
   }
 
   getIndexOfSelectedCommit() {
-    return this.props.selectedCommit ? 
-      this.props.repo.shaToIndex.get(this.props.selectedCommit.sha())! : 
+    return this.props.selectedCommit ?
+      this.props.repo.shaToIndex.get(this.props.selectedCommit.sha())! :
       -1;
   }
 
   render() {
     // Select visible commits and add index if necessary
-    const items: JSX.Element[] = [];
+    const items: React.JSX.Element[] = [];
     if (this.state.start === -1) {
       items.push(<IndexItem repoState={this.props.repoState} selected={this.props.selectedCommit === null}
-        onIndexSelect={this.props.onIndexSelect} 
+        onIndexSelect={this.props.onIndexSelect}
         key='index' />);
     }
     const commits = this.props.repo.commits.slice(Math.max(this.state.start, 0), this.state.end);
-    items.push(...commits.map((commit: Git.Commit) => {
+    items.push(...commits.map((commit: Commit) => {
       const commitSha = commit.sha();
       const color = getBranchColor(this.props.repo.graph.positions.get(commitSha)![1]);
       return (
-        <CommitItem 
-          repo={this.props.repo} 
-          commit={commit} 
+        <CommitItem
+          repo={this.props.repo}
+          commit={commit}
           head={this.props.repo.head}
           references={this.props.repo.shaToReferences.get(commitSha) || []}
-          selected={this.props.selectedCommit !== null && this.props.selectedCommit.sha() === commit.sha()} 
-          onCommitSelect={this.props.onCommitSelect} 
+          selected={this.props.selectedCommit !== null && this.props.selectedCommit.sha() === commit.sha()}
+          onCommitSelect={this.props.onCommitSelect}
           onCreateBranch={this.props.onCreateBranch}
           onOpenInputDialog={this.props.onOpenInputDialog}
           color={color}
@@ -175,7 +174,12 @@ export class CommitList extends React.PureComponent<CommitListProps, CommitListS
 
     return (
       <div className='commit-list' onScroll={this.handleScroll} ref={this.div}>
-        <ul style={style} tabIndex={1} onKeyUp={this.handleKeyUp} onKeyDown={(event) => {event.preventDefault(); event.stopPropagation();}}>{items}</ul>
+        <ul style={style}
+          tabIndex={1}
+          onKeyUp={this.handleKeyUp}
+          onKeyDown={(event) => {event.preventDefault(); event.stopPropagation();}}>
+          {items}
+        </ul>
       </div>
     );
   }

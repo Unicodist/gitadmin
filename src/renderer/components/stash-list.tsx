@@ -1,12 +1,11 @@
 import * as React from 'react';
-import * as Git from 'nodegit';
 import { StashItem } from './stash-item';
-import { RepoWrapper, Stash } from '../helpers/repo-wrapper';
+import { RepoWrapper, Stash, Commit } from '../helpers/repo-wrapper';
 
-export interface StashListProps { 
+export interface StashListProps {
   repo: RepoWrapper;
   stashes: Stash[];
-  onClick: (commit: Git.Commit) => void;
+  onClick: (commit: Commit) => void;
 }
 
 export interface StashListState {
@@ -18,7 +17,7 @@ export class StashList extends React.PureComponent<StashListProps, StashListStat
     super(props);
     this.state = {
       hide: false
-    }
+    };
     this.handleClick = this.handleClick.bind(this);
   }
 
@@ -31,9 +30,9 @@ export class StashList extends React.PureComponent<StashListProps, StashListStat
   render() {
     const stashItems = this.props.stashes.sort((a, b) => b.index - a.index).map((stash) => (
       <StashItem repo={this.props.repo}
-        name={stash.commit.summary()} 
+        name={stash.commit.summary()}
         index={stash.index}
-        onClick={() => this.props.onClick(stash.commit)} 
+        onClick={() => this.props.onClick(stash.commit)}
         key={stash.commit.sha()} />
     ));
     return (

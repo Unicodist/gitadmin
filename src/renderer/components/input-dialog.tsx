@@ -1,10 +1,10 @@
 import * as React from 'react';
 import { makeModal } from './make-modal';
 
-export type InputDialogHandler = (title: string, 
-  label: string, 
-  button: string, 
-  onSubmit: (value: string) => void, 
+export type InputDialogHandler = (title: string,
+  label: string,
+  button: string,
+  onSubmit: (value: string) => void,
   defaultValue?: string)
   => void;
 
@@ -25,7 +25,7 @@ class InputForm extends React.PureComponent<InputFormProps, InputFormState> {
     super(props);
     this.state = {
       value: this.props.defaultValue,
-    }
+    };
     this.handleValueChange = this.handleValueChange.bind(this);
     this.handleSubmit = this.handleSubmit.bind(this);
   }
@@ -38,7 +38,7 @@ class InputForm extends React.PureComponent<InputFormProps, InputFormState> {
     event.preventDefault();
     if (this.state.value) {
       this.props.onSubmit(this.state.value);
-      this.props.onClose(); 
+      this.props.onClose();
     }
   }
 
@@ -47,15 +47,15 @@ class InputForm extends React.PureComponent<InputFormProps, InputFormState> {
       <form className='modal-form' onSubmit={this.handleSubmit}>
         <div className='field-container'>
           <label htmlFor='value'>{this.props.label}:</label>
-          <input type='text' 
-            id='value' 
-            value={this.state.value} 
+          <input type='text'
+            id='value'
+            value={this.state.value}
             autoFocus={true}
             onChange={this.handleValueChange} />
         </div>
         <div className='button-container'>
-          <button className='green-button' 
-            type='submit' 
+          <button className='green-button'
+            type='submit'
             disabled={!this.state.value}>
             {this.props.button}
           </button>

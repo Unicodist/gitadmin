@@ -1,27 +1,26 @@
 import * as React from 'react';
-import * as Git from 'nodegit';
 import { GraphCanvas, OFFSET_X } from './graph-canvas';
 import { CommitList } from './commit-list';
 import { Splitter } from './splitter';
-import { ReferenceExplorer } from './reference-explorer'
+import { ReferenceExplorer } from './reference-explorer';
 import { InputDialogHandler } from './input-dialog';
-import { RepoWrapper, RepoState } from "../helpers/repo-wrapper";
+import { RepoWrapper, RepoState, Commit } from '../helpers/repo-wrapper';
 
-export interface GraphViewerProps { 
+export interface GraphViewerProps {
   repo: RepoWrapper;
   repoState: RepoState;
-  selectedCommit: Git.Commit | null;
-  onCommitSelect: (commit: Git.Commit) => void;
+  selectedCommit: Commit | null;
+  onCommitSelect: (commit: Commit) => void;
   onIndexSelect: () => void;
-  onCreateBranch: (commit: Git.Commit) => void;
+  onCreateBranch: (commit: Commit) => void;
   onOpenInputDialog: InputDialogHandler;
 }
 
 export class GraphViewer extends React.PureComponent<GraphViewerProps, {}> {
-  referenceExplorer: React.RefObject<ReferenceExplorer>;
-  div: React.RefObject<HTMLDivElement>;
-  canvas: React.RefObject<GraphCanvas>;
-  commitList: React.RefObject<CommitList>;
+  referenceExplorer: React.RefObject<ReferenceExplorer | null>;
+  div: React.RefObject<HTMLDivElement | null>;
+  canvas: React.RefObject<GraphCanvas | null>;
+  commitList: React.RefObject<CommitList | null>;
 
   constructor(props: GraphViewerProps) {
     super(props);
@@ -97,15 +96,15 @@ export class GraphViewer extends React.PureComponent<GraphViewerProps, {}> {
   render() {
     return (
       <div className='graph-viewer'>
-        <ReferenceExplorer repo={this.props.repo} 
-          onCommitSelect={async (commit) => { 
-            await this.props.onCommitSelect(commit); 
+        <ReferenceExplorer repo={this.props.repo}
+          onCommitSelect={async (commit) => {
+            await this.props.onCommitSelect(commit);
             if (this.commitList.current) {
               this.commitList.current.centerOnItem(this.props.repo.shaToIndex.get(commit.sha())!);
             }
           }}
-          onIndexSelect={async () => { 
-            await this.props.onIndexSelect(); 
+          onIndexSelect={async () => {
+            await this.props.onIndexSelect();
             if (this.commitList.current) {
               this.commitList.current.centerOnItem(-1);
             }
@@ -117,8 +116,8 @@ export class GraphViewer extends React.PureComponent<GraphViewerProps, {}> {
           <div className='commit-graph' ref={this.div}>
             <GraphCanvas repo={this.props.repo} ref={this.canvas} />
             <Splitter onDrag={this.handleCanvasResize} />
-            <CommitList {...this.props} 
-              onScroll={this.handleListScroll} 
+            <CommitList {...this.props}
+              onScroll={this.handleListScroll}
               onResize={this.handleListResize}
               onStateUpdate={this.handleListStateUpdate}
               ref={this.commitList} />

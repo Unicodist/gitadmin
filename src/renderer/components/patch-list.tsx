@@ -1,15 +1,14 @@
 import * as React from 'react';
-import * as Git from 'nodegit';
 import { PatchItem } from './patch-item';
-import { RepoWrapper, PatchType } from '../helpers/repo-wrapper';
+import { RepoWrapper, PatchType, Patch } from '../helpers/repo-wrapper';
 
 // Util
 
-function generatePatchKey(patch: Git.ConvenientPatch) {
-  return `${patch.status()}${patch.oldFile().path()}${patch.newFile().path()}`;
+function generatePatchKey(patch: Patch) {
+  return `${patch.status}${patch.oldFile.path}${patch.newFile.path}`;
 }
 
-function addOrDelete(selectedPatches: Set<Git.ConvenientPatch>, patch: Git.ConvenientPatch) {
+function addOrDelete(selectedPatches: Set<Patch>, patch: Patch) {
   if (selectedPatches.has(patch)) {
     selectedPatches.delete(patch);
   } else {
@@ -17,14 +16,14 @@ function addOrDelete(selectedPatches: Set<Git.ConvenientPatch>, patch: Git.Conve
   }
 }
 
-function addRange(patches: Git.ConvenientPatch[], selectedPatches: Set<Git.ConvenientPatch>, start: number, end: number) {
+function addRange(patches: Patch[], selectedPatches: Set<Patch>, start: number, end: number) {
   if (start > end) {
     [start, end] = [end, start];
   }
   patches.slice(start, end + 1).forEach((patch) => selectedPatches.add(patch));
 }
 
-function deleteRange(patches: Git.ConvenientPatch[], selectedPatches: Set<Git.ConvenientPatch>, start: number, end: number) {
+function deleteRange(patches: Patch[], selectedPatches: Set<Patch>, start: number, end: number) {
   if (start > end) {
     [start, end] = [end, start];
   }
@@ -33,14 +32,14 @@ function deleteRange(patches: Git.ConvenientPatch[], selectedPatches: Set<Git.Co
 
 // Patch list
 
-export interface PatchListProps { 
+export interface PatchListProps {
   repo?: RepoWrapper
-  patches: Git.ConvenientPatch[];
+  patches: Patch[];
   type: PatchType;
-  selectedPatch: Git.ConvenientPatch | null;
-  selectedPatches?: Set<Git.ConvenientPatch>;
-  onPatchSelect: (patch: Git.ConvenientPatch) => void;
-  onSelectedPatchesChange?: (selectedPatches: Set<Git.ConvenientPatch>) => void;
+  selectedPatch: Patch | null;
+  selectedPatches?: Set<Patch>;
+  onPatchSelect: (patch: Patch) => void;
+  onSelectedPatchesChange?: (selectedPatches: Set<Patch>) => void;
 }
 
 export class PatchList extends React.PureComponent<PatchListProps, {}> {
@@ -55,7 +54,7 @@ export class PatchList extends React.PureComponent<PatchListProps, {}> {
     this.handlePatchSelect = this.handlePatchSelect.bind(this);
   }
 
-  handlePatchSelect(patch: Git.ConvenientPatch, ctrlKey: boolean, shiftKey: boolean) {
+  handlePatchSelect(patch: Patch, ctrlKey: boolean, shiftKey: boolean) {
     this.iPatch = this.props.patches.indexOf(patch);
     if (this.props.selectedPatches && this.props.selectedPatches.size > 0 && ctrlKey) {
       const selectedPatches = new Set(this.props.selectedPatches);
@@ -81,9 +80,9 @@ export class PatchList extends React.PureComponent<PatchListProps, {}> {
   handleKeyDown(event: React.KeyboardEvent<HTMLUListElement>) {
     if (this.props.selectedPatch || (this.props.selectedPatches !== undefined && this.props.selectedPatches.size > 0)) {
       if (event.keyCode === 38 && this.iPatch > 0) {
-        this.handlePatchSelect(this.props.patches[this.iPatch - 1], event.ctrlKey, event.shiftKey)
+        this.handlePatchSelect(this.props.patches[this.iPatch - 1], event.ctrlKey, event.shiftKey);
       } else if (event.keyCode === 40 && this.iAnchor < this.props.patches.length - 1) {
-        this.handlePatchSelect(this.props.patches[this.iPatch + 1], event.ctrlKey, event.shiftKey)
+        this.handlePatchSelect(this.props.patches[this.iPatch + 1], event.ctrlKey, event.shiftKey);
       }
     }
   }
@@ -93,10 +92,10 @@ export class PatchList extends React.PureComponent<PatchListProps, {}> {
     const patchItems = this.props.patches.map((patch) => {
       const selected = patch === this.props.selectedPatch || (this.props.selectedPatches !== undefined && this.props.selectedPatches.has(patch));
       return <PatchItem repo={this.props.repo}
-        patch={patch} 
+        patch={patch}
         type={this.props.type}
-        selected={selected} 
-        onPatchSelect={this.handlePatchSelect} 
+        selected={selected}
+        onPatchSelect={this.handlePatchSelect}
         key={generatePatchKey(patch)} />;
     });
 

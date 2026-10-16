@@ -5,7 +5,7 @@ export enum LoadingState {
   Loaded
 }
 
-export interface LoadingScreenProps { 
+export interface LoadingScreenProps {
   state: LoadingState
 }
 

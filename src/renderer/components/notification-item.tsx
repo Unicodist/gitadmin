@@ -5,7 +5,7 @@ export enum NotificationType {
   Error
 }
 
-export interface NotificationItemProps { 
+export interface NotificationItemProps {
   id: number;
   message: string;
   type: NotificationType;
@@ -13,7 +13,7 @@ export interface NotificationItemProps {
 }
 
 export class NotificationItem extends React.PureComponent<NotificationItemProps, {}> {
-  li: React.RefObject<HTMLLIElement>;
+  li: React.RefObject<HTMLLIElement | null>;
   hover: boolean;
   shouldDisappear: boolean;
 
@@ -27,7 +27,7 @@ export class NotificationItem extends React.PureComponent<NotificationItemProps,
     this.appear = this.appear.bind(this);
     this.disappear = this.disappear.bind(this);
   }
-  
+
   componentDidMount() {
     setTimeout(this.appear, 100);
     setTimeout(() => {
@@ -64,9 +64,9 @@ export class NotificationItem extends React.PureComponent<NotificationItemProps,
 
   render() {
     return (
-      <li ref={this.li} 
+      <li ref={this.li}
         className={this.props.type === NotificationType.Error ? 'error' : 'information'}
-        onClick={this.disappear} 
+        onClick={this.disappear}
         onMouseEnter={this.handleMouseEnter}
         onMouseLeave={this.handleMouseLeave}>
         {this.props.message}

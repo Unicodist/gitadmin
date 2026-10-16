@@ -1,11 +1,10 @@
 import * as React from 'react';
-import { RepoWrapper } from '../helpers/repo-wrapper';
+import { RepoWrapper, Commit } from '../helpers/repo-wrapper';
 import { makeModal } from './make-modal';
-import * as Git from 'nodegit';
 
 export class CreateBranchFormProps {
   repo: RepoWrapper;
-  commit: Git.Commit;
+  commit: Commit;
   onClose: () => void;
 }
 
@@ -20,7 +19,7 @@ class CreateBranchForm extends React.PureComponent<CreateBranchFormProps, Create
     this.state = {
       branchName: '',
       checkout: true
-    }
+    };
     this.handleBranchNameChange = this.handleBranchNameChange.bind(this);
     this.handleCheckoutChange = this.handleCheckoutChange.bind(this);
     this.handleSubmit = this.handleSubmit.bind(this);
@@ -41,7 +40,7 @@ class CreateBranchForm extends React.PureComponent<CreateBranchFormProps, Create
       if (reference && this.state.checkout) {
         this.props.repo.checkoutReference(reference);
       }
-      this.props.onClose(); 
+      this.props.onClose();
     }
   }
 
@@ -50,24 +49,24 @@ class CreateBranchForm extends React.PureComponent<CreateBranchFormProps, Create
       <form className='modal-form' onSubmit={this.handleSubmit}>
         <div className='field-container'>
           <label htmlFor='name'>Name:</label>
-          <input type='text' 
-            id='name' 
-            name='repo-name' 
-            value={this.state.branchName} 
+          <input type='text'
+            id='name'
+            name='repo-name'
+            value={this.state.branchName}
             autoFocus={true}
             onChange={this.handleBranchNameChange} />
         </div>
         <div className='field-container'>
           <label htmlFor='checkout'>Checkout after create:</label>
-          <input type='checkbox' 
-            id='checkout' 
-            name='checkout' 
-            checked={this.state.checkout} 
+          <input type='checkbox'
+            id='checkout'
+            name='checkout'
+            checked={this.state.checkout}
             onChange={this.handleCheckoutChange} />
         </div>
         <div className='button-container'>
-          <button className='green-button' 
-            type='submit' 
+          <button className='green-button'
+            type='submit'
             disabled={!this.state.branchName}>
             Create branch
           </button>

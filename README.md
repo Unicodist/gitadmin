@@ -17,7 +17,7 @@ gitamine is powered by awesome technologies including:
 * [Electron](https://electronjs.org/)
 * [React](https://reactjs.org/)
 * [Monaco](https://github.com/Microsoft/monaco-editor)
-* [libgit2](https://libgit2.org/) and [NodeGit](https://www.nodegit.org/)
+* [Git](https://git-scm.com/), bundled with [dugite](https://github.com/desktop/dugite)
 * [chokidar](https://github.com/paulmillr/chokidar)
 
 If you want to know more about the commit graph drawing algorithm, you can read this [article](https://pvigier.github.io/2019/05/06/commit-graph-drawing-algorithms.html).
@@ -27,6 +27,21 @@ If you want to know more about the commit graph drawing algorithm, you can read 
 You can download the latest version of gitamine [here](https://github.com/pvigier/gitamine/releases/latest).
 
 See this [page](https://github.com/pvigier/gitamine/wiki/How-to-install) for detailed instruction on how to install gitamine.
+
+## Development
+
+You need [Node.js](https://nodejs.org/) 24 (see `.nvmrc`). Git does not need to be installed, the app ships its own copy through dugite.
+
+```sh
+npm install
+npm start          # build and run the app
+npm test           # unit and integration tests of the git layer
+npm run test:e2e   # end-to-end test of the app (uses xvfb-run on Linux CI)
+npm run lint
+npm run typecheck
+npm run package    # package the app for the current platform
+npm run make       # build the installers for the current platform
+```
 
 ## Contributing
 

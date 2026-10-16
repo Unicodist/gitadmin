@@ -1,25 +1,24 @@
 import * as React from 'react';
-import * as Git from 'nodegit';
 import { PatchList } from './patch-list';
-import { RepoWrapper, PatchType, RepoState } from '../helpers/repo-wrapper';
+import { RepoWrapper, PatchType, RepoState, Patch } from '../helpers/repo-wrapper';
 
-export interface IndexViewerProps { 
+export interface IndexViewerProps {
   repo: RepoWrapper;
   repoState: RepoState;
-  selectedPatch: Git.ConvenientPatch | null;
-  onPatchSelect: (patch: Git.ConvenientPatch | null, type: PatchType) => void;
+  selectedPatch: Patch | null;
+  onPatchSelect: (patch: Patch | null, type: PatchType) => void;
 }
 
 export interface IndexViewerState {
   amend: boolean;
   summary: string;
   description: string;
-  selectedUnstagedPatches: Set<Git.ConvenientPatch>;
-  selectedStagedPatches: Set<Git.ConvenientPatch>;
+  selectedUnstagedPatches: Set<Patch>;
+  selectedStagedPatches: Set<Patch>;
 }
 
 export class IndexViewer extends React.PureComponent<IndexViewerProps, IndexViewerState> {
-  form: React.RefObject<HTMLFormElement>;
+  form: React.RefObject<HTMLFormElement | null>;
   iSelectedPatch: number;
 
   constructor(props: IndexViewerProps) {
@@ -31,7 +30,7 @@ export class IndexViewer extends React.PureComponent<IndexViewerProps, IndexView
       description: '',
       selectedUnstagedPatches: new Set(),
       selectedStagedPatches: new Set()
-    }
+    };
     this.handleUnstagedPatchSelect = this.handleUnstagedPatchSelect.bind(this);
     this.handleSelectedUnstagedPatchesChange = this.handleSelectedUnstagedPatchesChange.bind(this);
     this.handleStagedPatchSelect = this.handleStagedPatchSelect.bind(this);
@@ -57,10 +56,10 @@ export class IndexViewer extends React.PureComponent<IndexViewerProps, IndexView
       this.setState({
         summary: this.props.repoState === RepoState.Merge ? await this.props.repo.getMergeMessage() : ''
       });
-    } 
+    }
   }
-   
-  handleUnstagedPatchSelect(patch: Git.ConvenientPatch) {
+
+  handleUnstagedPatchSelect(patch: Patch) {
     this.setState({
       selectedUnstagedPatches: new Set([patch]),
       selectedStagedPatches: new Set()
@@ -69,7 +68,7 @@ export class IndexViewer extends React.PureComponent<IndexViewerProps, IndexView
     this.props.onPatchSelect(patch, PatchType.Unstaged);
   }
 
-  handleSelectedUnstagedPatchesChange(selectedPatches: Set<Git.ConvenientPatch>) {
+  handleSelectedUnstagedPatchesChange(selectedPatches: Set<Patch>) {
     this.setState({
       selectedUnstagedPatches: selectedPatches,
       selectedStagedPatches: new Set()
@@ -77,7 +76,7 @@ export class IndexViewer extends React.PureComponent<IndexViewerProps, IndexView
     this.props.onPatchSelect(null, PatchType.Staged);
   }
 
-  handleStagedPatchSelect(patch: Git.ConvenientPatch) {
+  handleStagedPatchSelect(patch: Patch) {
     this.setState({
       selectedUnstagedPatches: new Set(),
       selectedStagedPatches: new Set([patch])
@@ -86,7 +85,7 @@ export class IndexViewer extends React.PureComponent<IndexViewerProps, IndexView
     this.props.onPatchSelect(patch, PatchType.Staged);
   }
 
-  handleSelectedStagedPatchesChange(selectedPatches: Set<Git.ConvenientPatch>) {
+  handleSelectedStagedPatchesChange(selectedPatches: Set<Patch>) {
     this.setState({
       selectedUnstagedPatches: new Set(),
       selectedStagedPatches: selectedPatches
@@ -96,9 +95,9 @@ export class IndexViewer extends React.PureComponent<IndexViewerProps, IndexView
 
   handlePatchesStage() {
     if (this.props.selectedPatch || this.state.selectedUnstagedPatches.size === 0) {
-      this.props.repo.stageAll(this.props.repo.unstagedPatches)
+      this.props.repo.stageAll(this.props.repo.unstagedPatches);
     } else if (this.state.selectedUnstagedPatches.size > 0) {
-      this.props.repo.stageAll([...this.state.selectedUnstagedPatches])
+      this.props.repo.stageAll([...this.state.selectedUnstagedPatches]);
     }
     this.setState({
       selectedUnstagedPatches: new Set()
@@ -107,9 +106,9 @@ export class IndexViewer extends React.PureComponent<IndexViewerProps, IndexView
 
   handlePatchesUnstage() {
     if (this.props.selectedPatch || this.state.selectedStagedPatches.size === 0) {
-      this.props.repo.unstageAll(this.props.repo.stagedPatches)
+      this.props.repo.unstageAll(this.props.repo.stagedPatches);
     } else if (this.state.selectedStagedPatches.size > 0) {
-      this.props.repo.unstageAll([...this.state.selectedStagedPatches])
+      this.props.repo.unstageAll([...this.state.selectedStagedPatches]);
     }
     this.setState({
       selectedStagedPatches: new Set()
@@ -120,7 +119,7 @@ export class IndexViewer extends React.PureComponent<IndexViewerProps, IndexView
     if (this.props.repo.headCommit) {
       const newState = {
         amend: event.target.checked
-      } as IndexViewerState
+      } as IndexViewerState;
       if (newState.amend && !this.state.summary) {
         newState.summary = this.props.repo.headCommit.summary();
       }
@@ -137,15 +136,15 @@ export class IndexViewer extends React.PureComponent<IndexViewerProps, IndexView
   }
 
   refreshSelectedPatch(unstagedPatch: boolean) {
-    const patches = unstagedPatch ? 
+    const patches = unstagedPatch ?
       [this.props.repo.unstagedPatches, this.props.repo.stagedPatches] :
       [this.props.repo.stagedPatches, this.props.repo.unstagedPatches];
-    const handler = unstagedPatch ? 
+    const handler = unstagedPatch ?
       [this.handleUnstagedPatchSelect, this.handleStagedPatchSelect] :
       [this.handleStagedPatchSelect, this.handleUnstagedPatchSelect];
-    const path = this.props.selectedPatch!.newFile().path();
+    const path = this.props.selectedPatch!.newFile.path;
     // Try to find the find in the same list
-    let patch = patches[0].find((patch) => path === patch.newFile().path());
+    let patch = patches[0].find((patch) => path === patch.newFile.path);
     if (patch) {
       handler[0].call(this, patch);
       return;
@@ -159,7 +158,7 @@ export class IndexViewer extends React.PureComponent<IndexViewerProps, IndexView
       return;
     }
     // Otherwise, try to find the file in the other list
-    patch = patches[1].find((patch) => path === patch.newFile().path());
+    patch = patches[1].find((patch) => path === patch.newFile.path);
     if (patch) {
       handler[1].call(this, patch);
       return;
@@ -177,7 +176,7 @@ export class IndexViewer extends React.PureComponent<IndexViewerProps, IndexView
   async handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (this.state.summary) {
-      const message = this.state.description ? 
+      const message = this.state.description ?
         `${this.state.summary}\n\n${this.state.description}` :
         this.state.summary;
       if (this.props.repoState === RepoState.Merge) {
@@ -202,13 +201,13 @@ export class IndexViewer extends React.PureComponent<IndexViewerProps, IndexView
     }
   }
 
-  formatButtonString(prefix: string, patches: Set<Git.ConvenientPatch>) {
+  formatButtonString(prefix: string, patches: Set<Patch>) {
     if (this.props.selectedPatch || patches.size === 0) {
-      return `${prefix} all changes`
+      return `${prefix} all changes`;
     } else if (patches.size === 1) {
-      return `${prefix} 1 file`
+      return `${prefix} 1 file`;
     } else {
-      return `${prefix} ${patches.size} files`
+      return `${prefix} ${patches.size} files`;
     }
   }
 
@@ -218,7 +217,7 @@ export class IndexViewer extends React.PureComponent<IndexViewerProps, IndexView
         <>
           <button className='green-button'
             type='submit'
-            disabled={this.props.repo.unstagedPatches.length === 0}>
+            disabled={this.props.repo.unstagedPatches.some((patch) => patch.isConflicted())}>
             Commit and merge
           </button>
           <button className='red-button'
@@ -259,7 +258,7 @@ export class IndexViewer extends React.PureComponent<IndexViewerProps, IndexView
           type={PatchType.Unstaged}
           selectedPatch={this.props.selectedPatch}
           selectedPatches={this.state.selectedUnstagedPatches}
-          onPatchSelect={this.handleUnstagedPatchSelect} 
+          onPatchSelect={this.handleUnstagedPatchSelect}
           onSelectedPatchesChange={this.handleSelectedUnstagedPatchesChange} />
         <div className='section-header'>
           <p>Staged files ({this.props.repo.stagedPatches.length})</p>
@@ -282,13 +281,13 @@ export class IndexViewer extends React.PureComponent<IndexViewerProps, IndexView
           {this.props.repo.headCommit && this.props.repoState !== RepoState.Merge ?
           <div className='amend-container'>
             <input type='checkbox' id='amend' name='amend' checked={this.state.amend} onChange={this.handleAmendChange} />
-            <label htmlFor='amend'>Amend</label> 
+            <label htmlFor='amend'>Amend</label>
           </div> : null}
         </div>
-        <input placeholder={'Summary'} 
-          value={this.state.summary} 
+        <input placeholder={'Summary'}
+          value={this.state.summary}
           onChange={this.handleSummaryChange} />
-        <textarea rows={3} 
+        <textarea rows={3}
           placeholder='Description'
           value={this.state.description}
           onChange={this.handleDescriptionChange} />
