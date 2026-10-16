@@ -1,42 +1,262 @@
-// TODO(restyle): legacy styles moved here unchanged, they still use the old theme variables
-
 /* Welcome dashboard */
 
-div.welcome-dashboard {
-  margin-top: 100px;
-  text-align: center;
+@welcome-content-width: 760px;
+// Height of the actions and of the recent repositories, so that the two columns line up
+@welcome-item-height: 56px;
+@welcome-tile-size: 32px;
 
-  h1 {
-    margin-bottom: 20px;
-  }
+// Cards of the actions and of the recent repositories
+.welcome-card() {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background-color: var(--surface-1);
+  box-shadow: var(--shadow-sm);
+  transition: background-color var(--duration-fast) var(--easing),
+    border-color var(--duration-fast) var(--easing);
+}
 
-  div.actions {
-    width: 600px;
-    margin: auto;
-    display: flex; 
+.welcome-card-hover() {
+  border-color: var(--border-strong);
+  background-color: color-mix(in srgb, var(--surface-1) 50%, var(--surface-2));
 
-    div.action {
-      width: 174px;
-      background-color: var(--list-background-color);
-      margin: 8px;
-      padding: 4px;
-      border: 1px solid var(--border-color);
-      border-radius: 3px; 
-      overflow-wrap: break-word;
-      
-      p {
-        text-align: left;
-        font-size: 12px;
-      }
-
-      &:hover {
-        background-color: var(--hover-color);
-      }
-
-      &:active {
-        background-color: var(--selected-color);
-      }
-    }
+  span.welcome-tile {
+    background-color: var(--accent-subtle);
+    color: var(--accent-text);
   }
 }
 
+.welcome-card-active() {
+  border-color: var(--border-strong);
+  background-color: var(--surface-2);
+}
+
+div.welcome-dashboard {
+  height: 100%;
+  display: flex;
+  overflow-y: auto;
+  background-color: var(--surface-0);
+
+  // The margins center the content, the larger padding at the bottom puts it slightly above the middle
+  div.welcome-content {
+    width: 100%;
+    max-width: calc(@welcome-content-width + 2 * var(--space-6));
+    margin: auto;
+    padding: var(--space-8) var(--space-6) calc(var(--space-8) + 8vh);
+  }
+
+  /* Header */
+
+  header.welcome-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    margin-bottom: calc(var(--space-8) + var(--space-2));
+
+    span.welcome-logo {
+      flex: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 56px;
+      height: 56px;
+      border-radius: var(--radius-lg);
+      background-color: var(--accent-subtle);
+      color: var(--accent-text);
+    }
+
+    h1 {
+      font-size: var(--font-size-2xl);
+      letter-spacing: -0.01em;
+    }
+
+    p {
+      margin-top: 2px;
+      color: var(--text-secondary);
+      font-size: var(--font-size-md);
+    }
+  }
+
+  /* Sections */
+
+  div.welcome-sections {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: var(--space-6) var(--space-8);
+  }
+
+  section {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+
+    h2 {
+      margin-bottom: var(--space-3);
+      color: var(--text-muted);
+      font-size: var(--font-size-xs);
+      font-weight: var(--font-weight-semibold);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+  }
+
+  span.welcome-tile {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: @welcome-tile-size;
+    height: @welcome-tile-size;
+    border-radius: var(--radius-sm);
+    background-color: var(--surface-2);
+    color: var(--text-secondary);
+    transition: background-color var(--duration-fast) var(--easing),
+      color var(--duration-fast) var(--easing);
+  }
+
+  /* Actions */
+
+  div.welcome-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  button.welcome-action {
+    .welcome-card();
+    justify-content: flex-start;
+    gap: var(--space-3);
+    width: 100%;
+    height: @welcome-item-height;
+    padding: 0 var(--space-4) 0 var(--space-3);
+    color: var(--text-primary);
+    font-size: var(--font-size-md);
+    text-align: left;
+
+    &:hover {
+      .welcome-card-hover();
+    }
+
+    &:active {
+      .welcome-card-active();
+    }
+
+    span.welcome-action-label {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: var(--line-height-tight);
+    }
+
+    span.welcome-action-shortcut {
+      flex: none;
+      display: flex;
+      gap: var(--space-1);
+    }
+  }
+
+  /* Recent repositories */
+
+  ul.recent-repos {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  li.recent-repo {
+    .welcome-card();
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    height: @welcome-item-height;
+    padding: 0 var(--space-4) 0 var(--space-3);
+
+    &:hover {
+      .welcome-card-hover();
+    }
+
+    &:active {
+      .welcome-card-active();
+    }
+
+    div.recent-repo-text {
+      flex: 1;
+      min-width: 0;
+    }
+
+    h3 {
+      line-height: 20px;
+
+      // The button covers the whole entry, the name is shortened with an ellipsis
+      button {
+        display: block;
+        width: 100%;
+        height: auto;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background-color: transparent;
+        color: inherit;
+        font: inherit;
+        text-align: left;
+
+        &:hover,
+        &:active {
+          background-color: transparent;
+        }
+
+        &::after {
+          content: "";
+          position: absolute;
+          inset: -1px;
+          border-radius: var(--radius-md);
+        }
+
+        &:focus-visible {
+          outline: none;
+
+          &::after {
+            outline: 2px solid var(--focus-ring);
+            outline-offset: 2px;
+          }
+        }
+      }
+
+      span.recent-repo-name {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+    }
+
+    p {
+      color: var(--text-muted);
+      font-size: var(--font-size-sm);
+      line-height: 16px;
+    }
+  }
+
+  div.recent-repos-empty {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    min-height: 2 * @welcome-item-height;
+    padding: var(--space-4);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    text-align: center;
+
+    svg.icon {
+      color: var(--text-muted);
+    }
+  }
+}
