@@ -28,8 +28,12 @@ export class TestRepo {
     this.time = 1700000000;
   }
 
-  static async create() {
-    const workdir = fs.realpathSync.native(fs.mkdtempSync(Path.join(os.tmpdir(), 'gitadmin-repo-')));
+  // Creates the repository in a new temporary directory, or in the given directory
+  static async create(path?: string) {
+    if (path) {
+      fs.mkdirSync(path, { recursive: true });
+    }
+    const workdir = fs.realpathSync.native(path || fs.mkdtempSync(Path.join(os.tmpdir(), 'gitadmin-repo-')));
     const repo = new TestRepo(workdir);
     await repo.git('init', '--quiet', '--initial-branch=main');
     await repo.git('config', 'user.name', 'Config User');

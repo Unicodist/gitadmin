@@ -39,12 +39,16 @@ You need [Node.js](https://nodejs.org/) 24 (see `.nvmrc`). Git does not need to 
 npm install
 npm start          # build and run the app
 npm test           # unit and integration tests of the git layer
-npm run test:e2e   # end-to-end test of the app (uses xvfb-run on Linux CI)
+npm run test:e2e   # end-to-end tests of the app (uses xvfb-run on Linux CI)
 npm run lint
 npm run typecheck
 npm run package    # package the app for the current platform
 npm run make       # build the installers for the current platform
 ```
+
+The stylesheet is written in LESS in `assets/less` and compiled to `assets/css` by `npm run build` (or `npm run build:css` alone). The colors come from the themes in `assets/themes`.
+
+The end-to-end tests compare screenshots of the main views in the light and dark themes with the images of `test/e2e/screenshots.spec.ts-snapshots`. They run on Linux only. After a visual change, record them again with `npm run test:e2e:update-snapshots` (with `xvfb-run -a` on a Linux machine without a display), check the new images and commit them.
 
 ## Contributing
 
