@@ -3,6 +3,7 @@ import { makeModal } from './make-modal';
 import { showOpenDirectoryDialog } from '../helpers/native';
 import { getCloneFolderName, getRepoPath } from '../helpers/dialogs';
 import { Icon } from './icon';
+import { RepoPathHint } from './repo-path-hint';
 
 export class CloneRepoFormProps {
   onClose: () => void;
@@ -116,15 +117,7 @@ class CloneRepoForm extends React.PureComponent<CloneRepoFormProps, CloneRepoFor
               spellCheck={false}
               aria-describedby='clone-full-path'
               onChange={this.handleRepoFolderChange} />
-            <p className='field-hint repo-path' id='clone-full-path' title={path ? path.fullPath : undefined}>
-              <Icon name='folder-git-2' size={14} />
-              {path ?
-                <span className='ellipsis-middle'>
-                  <span className='left'>{path.location}</span>
-                  <span className='right'>{path.name}</span>
-                </span> :
-                <span>{this.getPathHint()}</span>}
-            </p>
+            <RepoPathHint id='clone-full-path' path={path} hint={this.getPathHint()} />
           </div>
         </div>
         <div className='modal-footer'>

@@ -179,12 +179,16 @@ test('clones a repository in the folder that the dialog shows', async () => {
 
   await url.fill(origin);
   // The name of the folder comes from the URL unless it is given
-  await expect(dialog.getByLabel('Folder name')).toHaveAttribute('placeholder', name);
+  const folder = dialog.getByLabel('Folder name');
+  await expect(folder).toHaveAttribute('placeholder', name);
   await dialog.getByLabel('Location').fill(location);
-  await expect(path).toHaveText(Path.join(location, name));
+  await expect(path.locator('.ellipsis-middle')).toHaveText(Path.join(location, name));
   await expect(path).toHaveAttribute('title', Path.join(location, name));
-  await dialog.getByLabel('Folder name').fill('copy');
-  await expect(path).toHaveText(Path.join(location, 'copy'));
+  // Screen readers read the full path rather than its two parts
+  await expect(folder).toHaveAccessibleDescription(Path.join(location, name));
+  await folder.fill('copy');
+  await expect(path.locator('.ellipsis-middle')).toHaveText(Path.join(location, 'copy'));
+  await expect(folder).toHaveAccessibleDescription(Path.join(location, 'copy'));
 
   await clone.click();
   await expect(dialog).toHaveCount(0);
@@ -204,7 +208,8 @@ test('initializes a repository in the folder that the dialog shows', async () =>
   await dialog.getByLabel('Location').fill(location);
   await expect(path).toHaveText('Enter the name of the repository');
   await name.fill('difference-engine');
-  await expect(path).toHaveText(Path.join(location, 'difference-engine'));
+  await expect(path.locator('.ellipsis-middle')).toHaveText(Path.join(location, 'difference-engine'));
+  await expect(dialog.getByLabel('Location')).toHaveAccessibleDescription(Path.join(location, 'difference-engine'));
   await dialog.getByRole('button', { name: 'Create repository' }).click();
   await expect(dialog).toHaveCount(0);
   await expect(page.locator('.repo-title h1')).toHaveText('difference-engine');

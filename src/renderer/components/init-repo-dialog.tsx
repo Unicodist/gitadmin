@@ -3,6 +3,7 @@ import { makeModal } from './make-modal';
 import { showOpenDirectoryDialog } from '../helpers/native';
 import { getRepoPath } from '../helpers/dialogs';
 import { Icon } from './icon';
+import { RepoPathHint } from './repo-path-hint';
 
 export class InitRepoFormProps {
   onClose: () => void;
@@ -82,15 +83,9 @@ class InitRepoForm extends React.PureComponent<InitRepoFormProps, InitRepoFormSt
                 Browse
               </button>
             </div>
-            <p className='field-hint repo-path' id='init-full-path' title={path ? path.fullPath : undefined}>
-              <Icon name='folder-git-2' size={14} />
-              {path ?
-                <span className='ellipsis-middle'>
-                  <span className='left'>{path.location}</span>
-                  <span className='right'>{path.name}</span>
-                </span> :
-                <span>{this.state.repoPath ? 'Enter the name of the repository' : 'Choose where to put the repository'}</span>}
-            </p>
+            <RepoPathHint id='init-full-path'
+              path={path}
+              hint={this.state.repoPath ? 'Enter the name of the repository' : 'Choose where to put the repository'} />
           </div>
         </div>
         <div className='modal-footer'>
