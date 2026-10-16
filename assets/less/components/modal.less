@@ -1,79 +1,151 @@
-// TODO(restyle): legacy styles moved here unchanged, they still use the old theme variables
+/* Modal */
 
-/* Modal windows */
-
-div.modal-container {
-  position: absolute;
-  top: 0px;
-  left: 0px;
-  width: 100%;
-  height: 100%;
-  z-index: 4;
+// Covers the window, under the notifications, the dialog is centered on it
+div.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
   display: flex;
-  justify-content: center;
   align-items: center;
-  background-color: rgba(0, 0, 0, 0.5);
-
-  div.modal-background {
-    background-color: var(--background-color);
-
-    div.modal-header {
-      position: relative;
-      text-align: center;
-      border-bottom: 1px solid var(--border-color);
-      margin: 0px 8px;
-      padding: 4px 0px;
-
-      h2 {
-        margin: 0px;
-      }
-
-      button {
-        position: absolute;
-        top: 0px;
-        right: 0px;
-        margin: 4px 0px;
-      }
-    }
-  }
+  justify-content: center;
+  background-color: var(--backdrop);
+  backdrop-filter: blur(2px);
+  animation: modal-backdrop-enter var(--duration) var(--easing);
 }
 
-/* Modal forms */
-
-form.modal-form {
+div.modal-dialog {
   display: flex;
   flex-direction: column;
-  margin: 10px;
+  min-width: 420px;
+  max-width: calc(100vw - 2 * var(--space-8));
+  max-height: calc(100vh - 2 * var(--space-8));
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background-color: var(--surface-1);
+  box-shadow: var(--shadow-lg);
+  animation: modal-enter var(--duration) var(--easing);
 
-  div.field-container {
+  /* Header */
+
+  div.modal-header {
+    flex: none;
     display: flex;
-    margin: 4px 0px;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-3) var(--space-3) var(--space-5);
+    border-bottom: 1px solid var(--border-subtle);
 
-    label {
-      min-width: 140px;
-      display: inline-block;
-      text-align: right;
-      margin-right: 10px;
-    }
-
-    input[type="text"] {
+    h2 {
       flex: 1;
-    }
-
-    span#prefix {
+      min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
+      white-space: nowrap;
     }
   }
 
-  div.button-container {
-    width: 100%;
-    margin: 4px 0px;
+  /* Forms */
 
-    button {
-      width: 100%;
-      margin: 0px;
+  // The body scrolls between the header and the footer when the window is short
+  form.modal-form {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    width: 440px;
+    max-width: 100%;
+
+    // Room for the paths
+    &.repo-path-form {
+      width: 520px;
+    }
+  }
+
+  div.modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    padding: var(--space-5);
+    overflow-y: auto;
+
+    .check-field {
+      align-self: flex-start;
+    }
+  }
+
+  // Cancel, then the main action
+  div.modal-footer {
+    flex: none;
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-5);
+    border-top: 1px solid var(--border-subtle);
+    background-color: var(--surface-0);
+  }
+
+  /* Fields */
+
+  p.field-hint {
+    color: var(--text-muted);
+    font-size: var(--font-size-sm);
+    line-height: 16px;
+  }
+
+  // A text field followed by its button, like a folder and Browse
+  div.input-row {
+    display: flex;
+    gap: var(--space-2);
+
+    input {
+      flex: 1;
+    }
+  }
+
+  // Path of the repository that the dialog creates
+  p.repo-path {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+
+    .ellipsis-middle .right {
+      color: var(--text-secondary);
+      font-weight: var(--font-weight-medium);
+    }
+  }
+
+  // Commit of a new branch
+  p.branch-start {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    code {
+      color: var(--text-secondary);
     }
   }
 }
 
+@keyframes modal-backdrop-enter {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes modal-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  div.modal-backdrop,
+  div.modal-dialog {
+    animation: none;
+  }
+}

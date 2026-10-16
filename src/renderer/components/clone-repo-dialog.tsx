@@ -1,7 +1,8 @@
-import * as Path from 'path';
 import * as React from 'react';
 import { makeModal } from './make-modal';
 import { showOpenDirectoryDialog } from '../helpers/native';
+import { getCloneFolderName, getRepoPath } from '../helpers/dialogs';
+import { Icon } from './icon';
 
 export class CloneRepoFormProps {
   onClose: () => void;
@@ -51,58 +52,89 @@ class CloneRepoForm extends React.PureComponent<CloneRepoFormProps, CloneRepoFor
 
   handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (this.isPathValid()) {
-      const folderName = this.state.repoFolder || Path.parse(this.state.repoUrl).name;
-      const fullPath = Path.join(this.state.repoPath, folderName);
-      this.props.onCloneRepo(this.state.repoUrl, fullPath);
+    const path = this.getPath();
+    if (path) {
+      this.props.onCloneRepo(this.state.repoUrl.trim(), path.fullPath);
       this.props.onClose();
     }
   }
 
-  isPathValid() {
-    const folderName = this.state.repoFolder || Path.parse(this.state.repoUrl).name;
-    return this.state.repoPath.length > 0 && this.state.repoUrl && folderName.length > 0;
+  // Path of the clone, the name of its folder comes from the URL unless it is given
+  getPath() {
+    if (!this.state.repoUrl.trim()) {
+      return null;
+    }
+    return getRepoPath(this.state.repoPath, this.state.repoFolder || getCloneFolderName(this.state.repoUrl));
+  }
+
+  // What is missing to know the path of the clone
+  getPathHint() {
+    if (!this.state.repoPath) {
+      return 'Choose where to put the repository';
+    }
+    return this.state.repoUrl.trim() ? 'Enter the name of the folder' : 'Enter the URL of the repository';
   }
 
   render() {
+    const path = this.getPath();
     return (
-      <form className='modal-form' onSubmit={this.handleSubmit}>
-        <div className='field-container'>
-          <label htmlFor='path'>Where to clone to:</label>
-          <input type='text'
-            id='path'
-            name='repo-path'
-            value={this.state.repoPath}
-            autoFocus={true}
-            onChange={this.handleRepoPathChange} />
-          <button type='button'
-            onClick={this.handleBrowseClick}>
-            Browse
+      <form className='modal-form repo-path-form' onSubmit={this.handleSubmit}>
+        <div className='modal-body'>
+          <div className='field'>
+            <label htmlFor='clone-url'>Repository URL</label>
+            <input type='text'
+              id='clone-url'
+              name='repo-url'
+              placeholder='https://example.com/owner/repo.git'
+              value={this.state.repoUrl}
+              autoFocus={true}
+              spellCheck={false}
+              onChange={this.handleRepoUrlChange} />
+          </div>
+          <div className='field'>
+            <label htmlFor='clone-location'>Location</label>
+            <div className='input-row'>
+              <input type='text'
+                id='clone-location'
+                name='repo-path'
+                value={this.state.repoPath}
+                spellCheck={false}
+                onChange={this.handleRepoPathChange} />
+              <button type='button' onClick={this.handleBrowseClick}>
+                <Icon name='folder-open' />
+                Browse
+              </button>
+            </div>
+          </div>
+          <div className='field'>
+            <label htmlFor='clone-folder'>Folder name</label>
+            <input type='text'
+              id='clone-folder'
+              name='repo-folder'
+              placeholder={getCloneFolderName(this.state.repoUrl)}
+              value={this.state.repoFolder}
+              spellCheck={false}
+              aria-describedby='clone-full-path'
+              onChange={this.handleRepoFolderChange} />
+            <p className='field-hint repo-path' id='clone-full-path' title={path ? path.fullPath : undefined}>
+              <Icon name='folder-git-2' size={14} />
+              {path ?
+                <span className='ellipsis-middle'>
+                  <span className='left'>{path.location}</span>
+                  <span className='right'>{path.name}</span>
+                </span> :
+                <span>{this.getPathHint()}</span>}
+            </p>
+          </div>
+        </div>
+        <div className='modal-footer'>
+          <button type='button' onClick={this.props.onClose}>
+            Cancel
           </button>
-        </div>
-        <div className='field-container'>
-          <label htmlFor='url'>URL:</label>
-          <input type='text'
-            id='url'
-            name='repo-url'
-            value={this.state.repoUrl}
-            onChange={this.handleRepoUrlChange} />
-        </div>
-        <div className='field-container'>
-          <label htmlFor='folder'>Full path:</label>
-          <span id='prefix'>{this.state.repoPath}{Path.sep}</span>
-          <input type='text'
-            id='folder'
-            name='repo-folder'
-            placeholder={Path.parse(this.state.repoUrl).name}
-            value={this.state.repoFolder}
-            onChange={this.handleRepoFolderChange} />
-        </div>
-        <div className='button-container'>
-          <button className='green-button'
+          <button className='primary-button'
             type='submit'
-            disabled={!this.isPathValid()}>
-            Clone the repository
+            disabled={path === null}>
+            Clone
           </button>
         </div>
       </form>

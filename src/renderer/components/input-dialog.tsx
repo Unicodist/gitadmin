@@ -21,13 +21,23 @@ export class InputFormState {
 }
 
 class InputForm extends React.PureComponent<InputFormProps, InputFormState> {
+  input: React.RefObject<HTMLInputElement | null>;
+
   constructor(props: InputFormProps) {
     super(props);
+    this.input = React.createRef();
     this.state = {
       value: this.props.defaultValue,
     };
     this.handleValueChange = this.handleValueChange.bind(this);
     this.handleSubmit = this.handleSubmit.bind(this);
+  }
+
+  componentDidMount() {
+    // A name to change is selected, so that typing replaces it
+    if (this.input.current && this.props.defaultValue) {
+      this.input.current.select();
+    }
   }
 
   handleValueChange(event: React.ChangeEvent<HTMLInputElement>) {
@@ -45,16 +55,23 @@ class InputForm extends React.PureComponent<InputFormProps, InputFormState> {
   render() {
     return (
       <form className='modal-form' onSubmit={this.handleSubmit}>
-        <div className='field-container'>
-          <label htmlFor='value'>{this.props.label}:</label>
-          <input type='text'
-            id='value'
-            value={this.state.value}
-            autoFocus={true}
-            onChange={this.handleValueChange} />
+        <div className='modal-body'>
+          <div className='field'>
+            <label htmlFor='input-dialog-value'>{this.props.label}</label>
+            <input type='text'
+              id='input-dialog-value'
+              value={this.state.value}
+              autoFocus={true}
+              spellCheck={false}
+              ref={this.input}
+              onChange={this.handleValueChange} />
+          </div>
         </div>
-        <div className='button-container'>
-          <button className='green-button'
+        <div className='modal-footer'>
+          <button type='button' onClick={this.props.onClose}>
+            Cancel
+          </button>
+          <button className='primary-button'
             type='submit'
             disabled={!this.state.value}>
             {this.props.button}
