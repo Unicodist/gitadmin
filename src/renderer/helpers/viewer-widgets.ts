@@ -14,8 +14,9 @@ export function getEditorOptions() {
     minimap: {
       enabled: false
     },
-    // The editors are read-only, the position of the cursor does not matter
+    // The editors are read-only, the position of the cursor does not matter and a short diff does not scroll
     hideCursorInOverviewRuler: true,
+    scrollBeyondLastLine: false,
     scrollbar: {
       verticalScrollbarSize: EDITOR_SCROLLBAR_SIZE,
       horizontalScrollbarSize: EDITOR_SCROLLBAR_SIZE
