@@ -58,7 +58,7 @@ const createWindow = async () => {
   await mainWindow.loadFile(Path.join(__dirname, '../../assets/html/index.html'));
 
   // Open the DevTools
-  if (!app.isPackaged && !process.env.GITAMINE_NO_DEVTOOLS) {
+  if (!app.isPackaged && !process.env.GITADMIN_NO_DEVTOOLS) {
     await initDevTools(mainWindow);
   }
 

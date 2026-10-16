@@ -20,13 +20,13 @@ test.beforeEach(async () => {
   await repo.git('checkout', '--quiet', 'main');
   repo.write('engine.txt', lines('analytical', 'difference', 'engine'));
 
-  userData = fs.mkdtempSync(Path.join(os.tmpdir(), 'gitamine-e2e-'));
+  userData = fs.mkdtempSync(Path.join(os.tmpdir(), 'gitadmin-e2e-'));
   fs.writeFileSync(Path.join(userData, 'Settings'), JSON.stringify({
-    gitamine: { recentlyOpened: [repo.workdir], name: 'Ada Lovelace', email: 'ada@example.com', fontSize: 14 }
+    gitadmin: { recentlyOpened: [repo.workdir], name: 'Ada Lovelace', email: 'ada@example.com', fontSize: 14 }
   }));
   app = await electron.launch({
     args: [APP_PATH, '--no-sandbox', `--user-data-dir=${userData}`],
-    env: { ...process.env, GITAMINE_NO_DEVTOOLS: '1' } as Record<string, string>
+    env: { ...process.env, GITADMIN_NO_DEVTOOLS: '1' } as Record<string, string>
   });
   page = await app.firstWindow();
   pageErrors = [];

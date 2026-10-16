@@ -1,8 +1,8 @@
-# gitamine
+# Gitadmin
 
-gitamine is a modern graphical user interface for Git. It is open-source, multiplatform and easy to use.
+Gitadmin is a modern graphical user interface for Git. It is open-source, multiplatform and easy to use. It is based on [gitamine](https://github.com/pvigier/gitamine) by Pierre Vigier.
 
-The main features of gitamine are:
+The main features of Gitadmin are:
 
 * Beautiful and readable commit graph
 * Syntax highlighting
@@ -10,7 +10,7 @@ The main features of gitamine are:
 * Automatic refresh
 * No account required and no telemetry
 
-gitamine is powered by awesome technologies including:
+Gitadmin is powered by awesome technologies including:
 
 * [TypeScript](https://www.typescriptlang.org/)
 * [Node.js](https://nodejs.org/)
@@ -22,11 +22,14 @@ gitamine is powered by awesome technologies including:
 
 If you want to know more about the commit graph drawing algorithm, you can read this [article](https://pvigier.github.io/2019/05/06/commit-graph-drawing-algorithms.html).
 
-## Downloads
+## Running from source
 
-You can download the latest version of gitamine [here](https://github.com/pvigier/gitamine/releases/latest).
+```
+npm install
+npm start
+```
 
-See this [page](https://github.com/pvigier/gitamine/wiki/How-to-install) for detailed instruction on how to install gitamine.
+Run `npm run make` to build installers for your platform.
 
 ## Development
 
@@ -45,11 +48,11 @@ npm run make       # build the installers for the current platform
 
 ## Contributing
 
-Here are some ways, you can contribute to gitamine:
+Here are some ways, you can contribute to Gitadmin:
 
 * Found a bug, please create an issue, I will try to fix it as quickly as possible.
 * Want to fix an issue or add a feature yourself, do a pull request.
-* If you are a designer, gitamine needs an application icon and some icons for the user interface, you are more than welcome.
+* If you are a designer, Gitadmin needs an application icon and some icons for the user interface, you are more than welcome.
 * If you want to become an active maintainer, please contact me.
 
 ## Screenshots
@@ -59,6 +62,6 @@ Here are some ways, you can contribute to gitamine:
 
 ## License
 
-gitamine is distributed under the [GNU GENERAL PUBLIC LICENSE version 3](https://www.gnu.org/licenses/gpl-3.0.en.html).
+Gitadmin is distributed under the [GNU GENERAL PUBLIC LICENSE version 3](https://www.gnu.org/licenses/gpl-3.0.en.html).
 
-You are free to use gitamine for non-commercial and commercial projects without any restriction.
+You are free to use Gitadmin for non-commercial and commercial projects without any restriction.

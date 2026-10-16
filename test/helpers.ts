@@ -6,7 +6,7 @@ import { RepoWrapper } from '../src/renderer/helpers/repo-wrapper';
 import { NotificationType } from '../src/renderer/components/notification-item';
 
 // Isolate the tests from the git configuration of the machine
-const configDir = fs.mkdtempSync(Path.join(os.tmpdir(), 'gitamine-config-'));
+const configDir = fs.mkdtempSync(Path.join(os.tmpdir(), 'gitadmin-config-'));
 fs.writeFileSync(Path.join(configDir, 'gitconfig'), '');
 process.env.GIT_CONFIG_GLOBAL = Path.join(configDir, 'gitconfig');
 process.env.GIT_CONFIG_NOSYSTEM = '1';
@@ -29,7 +29,7 @@ export class TestRepo {
   }
 
   static async create() {
-    const workdir = fs.realpathSync.native(fs.mkdtempSync(Path.join(os.tmpdir(), 'gitamine-repo-')));
+    const workdir = fs.realpathSync.native(fs.mkdtempSync(Path.join(os.tmpdir(), 'gitadmin-repo-')));
     const repo = new TestRepo(workdir);
     await repo.git('init', '--quiet', '--initial-branch=main');
     await repo.git('config', 'user.name', 'Config User');
