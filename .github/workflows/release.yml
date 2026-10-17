@@ -69,12 +69,11 @@ jobs:
       matrix:
         include:
           # Architectures other than the one of the runner are cross-built.
-          # npm_arch selects the git that dugite downloads.
+          # npm_arch selects the git that dugite downloads. Electron 44 and
+          # later no longer publish Linux armv7l and Windows ia32 builds.
           - { os: ubuntu-latest, platform: linux, arch: x64, npm_arch: x64 }
           - { os: ubuntu-latest, platform: linux, arch: arm64, npm_arch: arm64 }
-          - { os: ubuntu-latest, platform: linux, arch: armv7l, npm_arch: arm }
           - { os: windows-latest, platform: win32, arch: x64, npm_arch: x64 }
-          - { os: windows-latest, platform: win32, arch: ia32, npm_arch: ia32 }
           - { os: windows-latest, platform: win32, arch: arm64, npm_arch: arm64 }
           - { os: macos-latest, platform: darwin, arch: arm64, npm_arch: arm64 }
           - { os: macos-latest, platform: darwin, arch: x64, npm_arch: x64 }
