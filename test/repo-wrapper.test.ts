@@ -135,7 +135,7 @@ describe('history', () => {
     const tag = wrapper.references.get('refs/tags/v1.0')!;
     assert.equal(tag.commitId, second);
     assert.notEqual(tag.targetId, second);
-    assert.equal(wrapper.getReferenceCommit(tag).sha(), second);
+    assert.equal(wrapper.getReferenceCommit(tag)!.sha(), second);
   });
 
   it('updates incrementally and removes unreachable commits', async () => {

@@ -1,0 +1,93 @@
+/* Branch picker */
+
+// A filter and checkboxes grouped by kind of reference, in the focus dialog
+div.branch-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-height: 0;
+
+  div.branch-picker-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .branch-picker-count {
+    flex: none;
+    color: var(--text-muted);
+    font-size: var(--font-size-sm);
+    font-variant-numeric: tabular-nums;
+  }
+
+  // The lists scroll under the filter
+  div.branch-picker-groups {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    height: 280px;
+    overflow-y: auto;
+    padding: var(--space-1);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    background-color: var(--surface-0);
+  }
+
+  h3 {
+    padding: var(--space-1) var(--space-2) 0;
+    color: var(--text-muted);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  label.check-field {
+    display: flex;
+    height: 26px;
+    padding: 0 var(--space-2);
+    border-radius: var(--radius-xs);
+
+    &:hover {
+      background-color: var(--hover);
+    }
+  }
+
+  .branch-picker-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  p.branch-picker-empty {
+    padding: var(--space-2);
+    color: var(--text-muted);
+  }
+}
+
+// A text field with a search icon in it
+div.search-field {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+
+  svg.icon {
+    position: absolute;
+    left: var(--space-2);
+    color: var(--text-muted);
+    pointer-events: none;
+  }
+
+  input {
+    flex: 1;
+    padding-left: calc(var(--space-2) + @icon-size + var(--space-2));
+  }
+}

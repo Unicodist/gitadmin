@@ -1,0 +1,168 @@
+/* Focus bar */
+
+// Above the graph while it is focused: one line with the focused branches, their merge base and the
+// actions, and the other relations in a panel under it
+section.focus-bar {
+  flex: none;
+  border-bottom: 1px solid var(--border);
+  background-color: var(--surface-0);
+  font-size: var(--font-size-sm);
+  container: focus-bar / inline-size;
+
+  code {
+    font-size: var(--font-size-xs);
+  }
+
+  div.focus-summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px var(--space-2);
+    min-height: 36px;
+    padding: 6px var(--space-2) 6px var(--space-3);
+  }
+
+  .focus-chip {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: var(--control-height-sm);
+    padding: 0 var(--space-2);
+    border-radius: var(--radius-pill);
+    background-color: var(--accent-subtle);
+    color: var(--accent-text);
+    font-weight: var(--font-weight-semibold);
+    white-space: nowrap;
+  }
+
+  // The colors of the focused branches, in the order of the focus
+  .focus-dots {
+    display: inline-flex;
+    gap: 2px;
+  }
+
+  .focus-dot {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+
+  // The summary of the commit gives way first, then the SHA
+  button.focus-merge-base {
+    order: 1;
+    flex: 0 1 auto;
+    min-width: 0;
+    justify-content: flex-start;
+    overflow: hidden;
+    color: var(--text-primary);
+
+    svg.icon {
+      flex: none;
+      color: var(--accent-text);
+    }
+
+    .focus-label {
+      flex: none;
+    }
+
+    .focus-commit-summary {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--text-secondary);
+    }
+  }
+
+  span.no-common-history {
+    order: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-muted);
+  }
+
+  .focus-actions {
+    order: 2;
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    margin-left: auto;
+  }
+
+  // A narrow bar keeps the icons of its buttons, the labels are still read and the titles tell what
+  // the buttons do
+  @container focus-bar (width < 560px) {
+    .focus-actions button {
+      .icon-only-button(var(--control-height-sm));
+    }
+  }
+
+  // Then the merge base goes under the focused branches and the buttons
+  @container focus-bar (width < 480px) {
+    .focus-actions {
+      order: 1;
+    }
+
+    button.focus-merge-base,
+    span.no-common-history {
+      order: 2;
+      flex-basis: 100%;
+    }
+  }
+
+  // Scrolls when many branches are focused, the graph keeps most of the room
+  div.focus-relations {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    max-height: 120px;
+    padding: 0 var(--space-3) var(--space-2);
+    overflow-y: auto;
+    color: var(--text-secondary);
+
+    &[hidden] {
+      display: none;
+    }
+
+    ul {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-1) var(--space-3);
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    li {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: var(--control-height-sm);
+    }
+
+    .focus-legend li {
+      color: var(--text-primary);
+    }
+
+    // The buttons line up with the text of the other lists
+    .focus-fork-points {
+      margin-left: calc(-1 * var(--space-2));
+      gap: var(--space-1);
+
+      svg.icon {
+        color: var(--accent-text);
+      }
+    }
+
+    .focus-comparisons {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0;
+    }
+  }
+}

@@ -5,6 +5,7 @@ Gitadmin is a modern graphical user interface for Git. It is open-source, multip
 The main features of Gitadmin are:
 
 * Beautiful and readable commit graph
+* Focus on a few branches to see only their history and how they relate: merge base, fork points, commits ahead and behind, merges between them
 * Syntax highlighting
 * Themeable (light and dark modes available)
 * Automatic refresh

@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { RepoWrapper, Reference } from '../helpers/repo-wrapper';
-import { createReferenceContextMenu } from '../helpers/reference-context-menu';
+import { createReferenceContextMenu, FocusChangeHandler } from '../helpers/reference-context-menu';
 import { IconName } from '../helpers/icons';
 import { InputDialogHandler } from './input-dialog';
 import { Icon } from './icon';
@@ -10,7 +10,9 @@ export class ReferenceBadgeProps {
   color: string;
   selected: boolean;
   repo: RepoWrapper;
+  focus: string[];
   onOpenInputDialog: InputDialogHandler;
+  onFocusChange: FocusChangeHandler;
 }
 
 export function getReferenceIcon(reference: Reference): IconName {
@@ -32,7 +34,8 @@ export class ReferenceBadge extends React.PureComponent<ReferenceBadgeProps, {}>
   handleContextMenu(event: React.MouseEvent<HTMLSpanElement>) {
     event.preventDefault();
     event.stopPropagation();
-    const menu = createReferenceContextMenu(this.props.repo, this.props.reference, this.props.selected, this.props.onOpenInputDialog);
+    const menu = createReferenceContextMenu(this.props.repo, this.props.reference, this.props.selected, this.props.onOpenInputDialog,
+      this.props.focus, this.props.onFocusChange);
     menu.popup();
   }
 

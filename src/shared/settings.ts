@@ -12,7 +12,9 @@ export enum Field {
   Email = 'email',
   RecentlyOpened = 'recentlyOpened',
   Theme = 'theme',
-  FontSize = 'fontSize'
+  FontSize = 'fontSize',
+  // Focused references of each repository, by the path of its working directory
+  BranchFocus = 'branchFocus'
 }
 
 function getUserDataPath(): string {

@@ -8,6 +8,7 @@ export class ToolbarProps {
   selectedCommit: Commit | null;
   onRepoClose: () => void;
   onCreateBranch: (commit: Commit) => void;
+  onOpenFocusDialog: () => void;
 }
 
 export class Toolbar extends React.PureComponent<ToolbarProps, {}> {
@@ -86,6 +87,14 @@ export class Toolbar extends React.PureComponent<ToolbarProps, {}> {
               onClick={this.handleBranchButtonClick}>
               <Icon name='git-branch-plus' />
               Branch
+            </button>
+            <button type='button'
+              className='ghost-button'
+              title='Show only the history of chosen branches'
+              aria-haspopup='dialog'
+              onClick={this.props.onOpenFocusDialog}>
+              <Icon name='list-filter' />
+              Focus
             </button>
           </div>
           <div className='toolbar-group' role='group' aria-label='Stash actions'>

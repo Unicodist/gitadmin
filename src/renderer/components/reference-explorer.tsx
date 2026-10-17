@@ -9,7 +9,9 @@ export interface ReferenceExplorerProps {
   repo: RepoWrapper;
   onCommitSelect: (commit: Commit) => void;
   onIndexSelect: () => void;
+  focus: string[];
   onOpenInputDialog: InputDialogHandler;
+  onFocusChange: (focus: string[]) => Promise<void>;
 }
 
 export interface ReferenceExplorerState {
@@ -47,7 +49,7 @@ export class ReferenceExplorer extends React.PureComponent<ReferenceExplorerProp
     const references = [...this.props.repo.references.values()];
     return (
       <div className='reference-explorer' ref={this.div}>
-        <nav aria-label='References' onKeyDown={this.handleKeyDown}>
+        <nav aria-label='References' className={this.props.focus.length > 0 ? 'focused' : undefined} onKeyDown={this.handleKeyDown}>
           <button type='button' className='reference-item' onClick={this.props.onIndexSelect}>
             <Icon name='pencil-line' />
             <span className='reference-name'>Index</span>
@@ -56,19 +58,25 @@ export class ReferenceExplorer extends React.PureComponent<ReferenceExplorerProp
             repo={this.props.repo}
             references={references.filter((reference) => reference.isBranch())}
             head={this.props.repo.head}
+            focus={this.props.focus}
             onOpenInputDialog={this.props.onOpenInputDialog}
+            onFocusChange={this.props.onFocusChange}
             onClick={this.props.onCommitSelect} />
           <ReferenceList title="Remote branches"
             repo={this.props.repo}
             references={references.filter((reference) => reference.isRemote())}
             head={this.props.repo.head}
+            focus={this.props.focus}
             onOpenInputDialog={this.props.onOpenInputDialog}
+            onFocusChange={this.props.onFocusChange}
             onClick={this.props.onCommitSelect} />
           <ReferenceList title="Tags"
             repo={this.props.repo}
             references={references.filter((reference) => reference.isTag())}
             head={this.props.repo.head}
+            focus={this.props.focus}
             onOpenInputDialog={this.props.onOpenInputDialog}
+            onFocusChange={this.props.onFocusChange}
             onClick={this.props.onCommitSelect} />
           <StashList repo={this.props.repo}
             stashes={[...this.props.repo.stashes.values()]}

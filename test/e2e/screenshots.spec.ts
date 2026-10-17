@@ -193,6 +193,23 @@ for (const theme of ['light', 'dark']) {
         await expect(page.getByRole('dialog')).toHaveCount(0);
       });
 
+      await test.step('focus', async () => {
+        // The three kinds of relations: notes is merged into main, and feature forks from main
+        const explorer = page.locator('.reference-explorer');
+        for (const name of ['main', 'notes', 'feature/bernoulli-numbers']) {
+          await explorer.getByRole('checkbox', { name: `Focus on ${name}`, exact: true }).check();
+        }
+        await expect(page.getByText('Showing 3 branches')).toBeVisible();
+        await expect(page.locator('.commit-list').getByText('Add the engine')).toBeVisible();
+        await expectScreenshot(page, `focus-${theme}.png`);
+
+        await page.locator('.repo-toolbar').getByRole('button', { name: 'Focus' }).click();
+        await expect(page.getByRole('dialog')).toBeVisible();
+        await expectScreenshot(page, `focus-dialog-${theme}.png`);
+        await page.keyboard.press('Escape');
+        await expect(page.getByRole('dialog')).toHaveCount(0);
+      });
+
       await test.step('preferences', async () => {
         await sendMenuCommand(app, 'preferences');
         await expect(page.getByRole('dialog')).toBeVisible();
