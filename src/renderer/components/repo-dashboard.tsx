@@ -37,6 +37,8 @@ export interface RepoDashboardState {
   focus: string[];
   // Full name of the branch whose summary is in the right panel, it takes the place of the commit or the index
   summaryBranch: string | null;
+  // Branch whose summary the selected commit was opened from, the commit viewer can go back to it
+  previousSummary: string | null;
 }
 
 export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoDashboardState> {
@@ -72,6 +74,7 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
     this.handleBranchSummaryShow = this.handleBranchSummaryShow.bind(this);
     this.handleBranchSummaryClose = this.handleBranchSummaryClose.bind(this);
     this.handleSummaryCommitSelect = this.handleSummaryCommitSelect.bind(this);
+    this.handleBackToSummary = this.handleBackToSummary.bind(this);
     this.state = {
       repoState: this.props.repo.getState(),
       loadingState: LoadingState.NotLoading,
@@ -80,7 +83,8 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
       patchType: PatchType.Committed,
       // The repository opens with the focus it had when it was closed
       focus: loadFocus(this.props.repo.workdir),
-      summaryBranch: null
+      summaryBranch: null,
+      previousSummary: null
     };
   }
 
@@ -117,7 +121,8 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
     return new Promise<void>((resolve) => {
       this.setState({
         selectedCommit: commit,
-        summaryBranch: null
+        summaryBranch: null,
+        previousSummary: null
       }, () => resolve());
     });
   }
@@ -126,7 +131,8 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
     return new Promise<void>((resolve) => {
       this.setState({
         selectedCommit: null,
-        summaryBranch: null
+        summaryBranch: null,
+        previousSummary: null
       }, () => resolve());
     });
   }
@@ -146,13 +152,26 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
     });
   }
 
-  // A commit of the summary is selected in the graph, so that the list scrolls to it
-  handleSummaryCommitSelect(commit: Commit) {
+  // A commit of the summary is selected in the graph, so that the list scrolls to it, the commit viewer can go back
+  // to the summary
+  async handleSummaryCommitSelect(commit: Commit) {
+    const branch = this.state.summaryBranch;
     if (this.graphViewer.current) {
-      this.graphViewer.current.handleCommitSelect(commit);
+      await this.graphViewer.current.handleCommitSelect(commit);
     } else {
-      this.handleCommitSelect(commit);
+      await this.handleCommitSelect(commit);
     }
+    this.setState({
+      previousSummary: branch
+    });
+  }
+
+  handleBackToSummary() {
+    this.setState({
+      summaryBranch: this.state.previousSummary,
+      previousSummary: null,
+      selectedPatch: null
+    });
   }
 
   handlePatchSelect(patch: Patch | null, type: PatchType) {
@@ -341,6 +360,11 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
 
   // The summary closes when its branch is removed, it is loaded again when the branch or its source moved
   updateBranchSummary() {
+    if (this.state.previousSummary !== null && !this.props.repo.references.has(this.state.previousSummary)) {
+      this.setState({
+        previousSummary: null
+      });
+    }
     const branch = this.state.summaryBranch;
     if (branch === null) {
       return;
@@ -407,6 +431,7 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
         selectedPatch={this.state.selectedPatch}
         onCommitSelect={this.handleCommitSelect}
         onPatchSelect={this.handlePatchSelect}
+        onBackToSummary={this.state.previousSummary !== null ? this.handleBackToSummary : undefined}
         ref={this.rightViewer as React.RefObject<CommitViewer | null>} />;
     } else {
       rightViewer = <IndexViewer repo={this.props.repo}

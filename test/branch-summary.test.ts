@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as Path from 'path';
 import {
-  BranchSummary, FileChange, countAuthors, describeAheadBehind, describeTimeSpan, formatSummaryMarkdown, getBranchName,
+  BranchSummary, FileChange, countAuthors, describeAheadBehind, describeTimeSpan, formatDay, formatSummaryMarkdown, getBranchName,
   getMostChangedDirectories, getMostChangedFiles, getSourceCandidates, getSourceChoices, getTimeSpan, loadSource, saveSource
 } from '../src/renderer/helpers/branch-summary';
 import { parseLineCounts } from '../src/renderer/helpers/git/parsers';
@@ -20,6 +20,11 @@ const DEVELOP = 'refs/heads/develop';
 function commit(sha: string, author: string, time: number, parents: string[] = []) {
   const signature = { name: author, email: `${author.toLowerCase()}@example.com`, date: new Date(time * 1000) };
   return new Commit(sha, parents, signature, signature, `Commit ${sha}`);
+}
+
+// Seconds since the epoch of a local time, so that the days do not depend on the time zone
+function localTime(day: number, hours: number) {
+  return new Date(2023, 10, day, hours).valueOf() / 1000;
 }
 
 function change(path: string, added: number, removed: number, binary = false): FileChange {
@@ -61,13 +66,36 @@ describe('summary statistics', () => {
   });
 
   it('spans the author dates of the commits', () => {
-    const [first, last] = getTimeSpan([commit('b', 'Ada', 1700086400), commit('a', 'Ada', 1700000000), commit('c', 'Ada', 1700050000)]);
-    assert.equal(first!.valueOf(), 1700000000000);
-    assert.equal(last!.valueOf(), 1700086400000);
+    const [first, last] = getTimeSpan([
+      commit('b', 'Ada', localTime(15, 9)),
+      commit('a', 'Ada', localTime(14, 12)),
+      commit('c', 'Ada', localTime(15, 1))
+    ]);
+    assert.equal(first!.valueOf(), localTime(14, 12) * 1000);
+    assert.equal(last!.valueOf(), localTime(15, 9) * 1000);
     assert.deepEqual(getTimeSpan([]), [null, null]);
     assert.equal(describeTimeSpan(first, last), '2023-11-14 to 2023-11-15');
     assert.equal(describeTimeSpan(first, first), '2023-11-14');
     assert.equal(describeTimeSpan(null, null), 'No commits');
+  });
+
+  it('tells the days in the local time zone', () => {
+    const timeZone = process.env.TZ;
+    try {
+      // 2am in Kathmandu is still the previous day in UTC
+      process.env.TZ = 'Asia/Kathmandu';
+      const date = new Date('2026-10-17T02:00:00+05:45');
+      assert.equal(date.toISOString().substring(0, 10), '2026-10-16');
+      assert.equal(formatDay(date), '2026-10-17');
+      process.env.TZ = 'America/Los_Angeles';
+      assert.equal(formatDay(new Date('2026-10-17T02:00:00Z')), '2026-10-16');
+    } finally {
+      if (timeZone === undefined) {
+        delete process.env.TZ;
+      } else {
+        process.env.TZ = timeZone;
+      }
+    }
   });
 
   it('describes the commits ahead and behind', () => {
@@ -103,9 +131,9 @@ describe('summary statistics', () => {
 });
 
 describe('summary as Markdown', () => {
-  const fork = commit('f0f0f0f0f0', 'Ada', 1700000000);
+  const fork = commit('f0f0f0f0f0', 'Ada', localTime(14, 12));
   const merge = new Commit('m1m1m1m1m1', ['c2', 'x9'], fork.author(), fork.committer(), 'Merge branch \'main\' into feature');
-  const work = commit('c2c2c2c2c2', 'Grace', 1700086400);
+  const work = commit('c2c2c2c2c2', 'Grace', localTime(15, 12));
   const summary: BranchSummary = {
     branch: FEATURE,
     source: MAIN,

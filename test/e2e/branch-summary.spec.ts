@@ -109,6 +109,16 @@ test('opens the summary from a badge of the graph and selects its commits', asyn
   await expect(page.locator('.commit-viewer h2')).toHaveText('Add the cards');
   await expect(page.getByRole('listbox', { name: 'Commits' }).getByRole('option', { selected: true })).toContainText('Add the cards');
 
+  // The commit viewer goes back to the summary, to look at the next commit
+  await page.locator('.commit-viewer').getByRole('button', { name: 'Back to the branch summary' }).click();
+  await expect(summaryViewer().locator('h2')).toHaveText('feature');
+  await summaryViewer().getByRole('list', { name: 'Branch commits' }).getByRole('button').filter({ hasText: 'Punch the cards' }).click();
+  await expect(page.locator('.commit-viewer h2')).toHaveText('Punch the cards');
+  // A commit selected in the graph does not come from the summary
+  await commitRows().filter({ hasText: 'Add the cards' }).click();
+  await expect(page.locator('.commit-viewer h2')).toHaveText('Add the cards');
+  await expect(page.locator('.commit-viewer').getByRole('button', { name: 'Back to the branch summary' })).toHaveCount(0);
+
   // The close button goes back to the selected commit
   await openSummary('feature');
   await summaryViewer().getByRole('button', { name: 'Close the summary' }).click();

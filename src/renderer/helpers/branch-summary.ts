@@ -190,8 +190,10 @@ export function describeAheadBehind(ahead: number, behind: number) {
   return `${plural(ahead, 'commit')} ahead, ${behind} behind`;
 }
 
+// Day in the local time zone, like the other dates of the app
 export function formatDay(date: Date) {
-  return date.toISOString().substring(0, 10);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
 // "2026-10-01 to 2026-10-17", or the day alone
