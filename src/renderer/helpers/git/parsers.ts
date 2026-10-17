@@ -76,13 +76,16 @@ function parseObjectId(id: string) {
   return /^0+$/.test(id) ? null : id;
 }
 
-// Parses the output of `git diff --raw --numstat -z --no-abbrev` (and diff-tree/diff-index equivalents)
-export function parseDiffSummary(output: string) {
-  const tokens = output.split('\0');
+export interface LineCount {
+  added: number;
+  removed: number;
+  binary: boolean;
+}
+
+// Raw entries come first in the output of `git diff --raw --numstat -z`, returns them and the index of the numstat entries
+function parseRawEntries(tokens: string[]): [DiffEntry[], number] {
   const entries: DiffEntry[] = [];
-  const binaryPaths = new Set<string>();
   let i = 0;
-  // Raw entries come first
   while (i < tokens.length && tokens[i].startsWith(':')) {
     const header = tokens[i].substring(1).split(' ');
     const [oldMode, newMode, oldId, newId, statusWithScore] = header;
@@ -105,7 +108,13 @@ export function parseDiffSummary(output: string) {
       binary: false
     });
   }
-  // Then numstat entries, binary files have '-' as counts
+  return [entries, i];
+}
+
+// Then numstat entries, by their new path. Binary files have '-' as counts.
+function parseNumstatEntries(tokens: string[], start: number) {
+  const counts = new Map<string, LineCount>();
+  let i = start;
   while (i < tokens.length) {
     const match = /^(\d+|-)\t(\d+|-)\t(.*)$/s.exec(tokens[i]);
     i += 1;
@@ -118,15 +127,32 @@ export function parseDiffSummary(output: string) {
       path = tokens[i + 1];
       i += 2;
     }
-    if (match[1] === '-' && match[2] === '-') {
-      binaryPaths.add(path);
-    }
+    const binary = match[1] === '-' && match[2] === '-';
+    counts.set(path, {
+      added: binary ? 0 : parseInt(match[1], 10),
+      removed: binary ? 0 : parseInt(match[2], 10),
+      binary
+    });
   }
+  return counts;
+}
+
+// Parses the output of `git diff --raw --numstat -z --no-abbrev` (and diff-tree/diff-index equivalents)
+export function parseDiffSummary(output: string) {
+  const tokens = output.split('\0');
+  const [entries, numstatStart] = parseRawEntries(tokens);
+  const counts = parseNumstatEntries(tokens, numstatStart);
   // When a path is unmerged, git also reports a diff against "ours", keep only the conflict
   const conflictedPaths = new Set(entries.filter((entry) => entry.status === PatchStatus.Conflicted).map((entry) => entry.newPath));
   return entries
     .filter((entry) => entry.status === PatchStatus.Conflicted || !conflictedPaths.has(entry.newPath))
-    .map((entry) => ({ ...entry, binary: binaryPaths.has(entry.newPath) }));
+    .map((entry) => ({ ...entry, binary: counts.get(entry.newPath)?.binary === true }));
+}
+
+// Added and removed lines of each file by its new path, from the same output as parseDiffSummary
+export function parseLineCounts(output: string) {
+  const tokens = output.split('\0');
+  return parseNumstatEntries(tokens, parseRawEntries(tokens)[1]);
 }
 
 // Unified diffs
