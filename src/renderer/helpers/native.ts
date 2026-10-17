@@ -1,5 +1,6 @@
 import { ipcRenderer } from 'electron';
 import { SerializedMenuItem, ThemeSource } from '../../shared/ipc';
+import { CredentialAnswer, CredentialRequest } from '../../shared/askpass';
 
 export interface MenuItem {
   label?: string;
@@ -61,4 +62,27 @@ export async function showOpenDirectoryDialog() {
 // and the color shown before the page is painted
 export async function setThemeSource(themeSource: ThemeSource, backgroundColor?: string) {
   await ipcRenderer.invoke('set-theme-source', themeSource, backgroundColor);
+}
+
+// Calls the listener when git or ssh asks for credentials, returns a function that removes the listener
+export function onCredentialRequest(listener: (request: CredentialRequest) => void) {
+  const handler = (_event: Electron.IpcRendererEvent, request: CredentialRequest) => listener(request);
+  ipcRenderer.on('credential-request', handler);
+  return () => {
+    ipcRenderer.off('credential-request', handler);
+  };
+}
+
+// Answers a request for credentials, null cancels it
+export function answerCredentialRequest(id: number, answer: CredentialAnswer | null) {
+  ipcRenderer.send('credential-response', id, answer);
+}
+
+// Number of passphrases and passwords remembered until the app quits
+export async function getRememberedCredentialCount(): Promise<number> {
+  return await ipcRenderer.invoke('get-remembered-credential-count');
+}
+
+export async function forgetCredentials() {
+  await ipcRenderer.invoke('forget-credentials');
 }

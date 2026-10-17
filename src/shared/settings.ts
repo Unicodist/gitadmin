@@ -18,7 +18,9 @@ export enum Field {
   // Source branch chosen for the summary of each branch, by the path of the working directory and the branch
   BranchSummarySources = 'branchSummarySources',
   // View of the graph of each repository, by the path of its working directory: list or canvas, filters, minimap
-  GraphView = 'graphView'
+  GraphView = 'graphView',
+  // Private key used for the SSH remotes of each host, by host name, the hosts without one use the agent
+  SshHostKeys = 'sshHostKeys'
 }
 
 function getUserDataPath(): string {

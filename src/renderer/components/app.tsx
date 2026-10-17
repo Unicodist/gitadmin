@@ -1,7 +1,8 @@
 import * as React from 'react';
 import { RepoDashboard } from './repo-dashboard';
 import { RepoWrapper, RepoLocation, Commit, Reference } from '../helpers/repo-wrapper';
-import { setThemeSource, showOpenDirectoryDialog } from '../helpers/native';
+import { answerCredentialRequest, onCredentialRequest, setThemeSource, showOpenDirectoryDialog } from '../helpers/native';
+import { CancelledError } from '../helpers/git/network';
 import { registerEditorTheme } from '../helpers/monaco-loader';
 import { NotificationQueue } from './notification-queue';
 import { WelcomeDashboard } from './welcome-dashboard';
@@ -16,12 +17,16 @@ import { DEFAULT_THEME, getBackgroundColor, getEditorThemeData, getEditorThemeNa
   from '../../shared/theme-manager';
 import { InputDialog } from './input-dialog';
 import { FocusDialog } from './focus-dialog';
+import { CredentialDialog } from './credential-dialog';
+import { CredentialAnswer, CredentialRequest, getPromptTitle } from '../../shared/askpass';
 
 export interface AppState {
   repos: RepoWrapper[];
   editorTheme: string;
   patchViewerOptions: TextPatchViewerOptions;
   modalWindow: React.JSX.Element | null;
+  // Prompts of git and ssh, shown one at a time over the other dialogs
+  credentialRequests: CredentialRequest[];
 }
 
 export class App extends React.PureComponent<{}, AppState> {
@@ -31,6 +36,7 @@ export class App extends React.PureComponent<{}, AppState> {
   colorSchemeQuery: MediaQueryList;
   // Color scheme of the OS when the theme was applied
   prefersDark: boolean;
+  removeCredentialListener: (() => void) | null;
 
   constructor(props: {}) {
     super(props);
@@ -45,8 +51,10 @@ export class App extends React.PureComponent<{}, AppState> {
       patchViewerOptions: {
         fontSize: 14
       },
-      modalWindow: null
+      modalWindow: null,
+      credentialRequests: []
     };
+    this.removeCredentialListener = null;
     this.updateTheme = this.updateTheme.bind(this);
     this.handleColorSchemeChange = this.handleColorSchemeChange.bind(this);
     this.updatePatchViewer = this.updatePatchViewer.bind(this);
@@ -61,10 +69,12 @@ export class App extends React.PureComponent<{}, AppState> {
     this.openFocusDialog = this.openFocusDialog.bind(this);
     this.showNotification = this.showNotification.bind(this);
     this.closeModalWindow = this.closeModalWindow.bind(this);
+    this.handleCredentialRequest = this.handleCredentialRequest.bind(this);
   }
 
   componentDidMount() {
     this.colorSchemeQuery.addEventListener('change', this.handleColorSchemeChange);
+    this.removeCredentialListener = onCredentialRequest(this.handleCredentialRequest);
     // The color scheme of the OS may have changed between the first render and now
     if (this.themeSetting === SYSTEM_THEME && this.colorSchemeQuery.matches !== this.prefersDark) {
       this.setState({
@@ -77,6 +87,9 @@ export class App extends React.PureComponent<{}, AppState> {
 
   componentWillUnmount() {
     this.colorSchemeQuery.removeEventListener('change', this.handleColorSchemeChange);
+    if (this.removeCredentialListener) {
+      this.removeCredentialListener();
+    }
   }
 
   // Applies the theme of the setting, returns the name of the theme of the editors
@@ -132,7 +145,10 @@ export class App extends React.PureComponent<{}, AppState> {
     try {
       this.addRepo(await RepoWrapper.clone(url, path));
     } catch (e) {
-      this.showNotification(`Unable to clone repo: ${e.message}`, NotificationType.Error);
+      // The user cancelled a prompt for credentials
+      if (!(e instanceof CancelledError)) {
+        this.showNotification(`Unable to clone repo: ${e.message}`, NotificationType.Error);
+      }
     }
   }
 
@@ -258,10 +274,39 @@ export class App extends React.PureComponent<{}, AppState> {
     });
   }
 
+  handleCredentialRequest(request: CredentialRequest) {
+    this.setState((prevState) => ({
+      credentialRequests: [...prevState.credentialRequests, request]
+    }));
+  }
+
+  // Sends the answer to the command that waits for it, null cancels the command
+  answerCredentialRequest(request: CredentialRequest, answer: CredentialAnswer | null) {
+    if (!this.state.credentialRequests.includes(request)) {
+      return;
+    }
+    answerCredentialRequest(request.id, answer);
+    this.setState((prevState) => ({
+      credentialRequests: prevState.credentialRequests.filter((other) => other !== request)
+    }));
+  }
+
   closeModalWindow() {
     this.setState({
       modalWindow: null
     });
+  }
+
+  renderCredentialDialog() {
+    const request = this.state.credentialRequests[0];
+    if (!request) {
+      return null;
+    }
+    return <CredentialDialog title={getPromptTitle(request.kind)}
+      request={request}
+      onAnswer={(answer) => this.answerCredentialRequest(request, answer)}
+      onClose={() => this.answerCredentialRequest(request, null)}
+      key={request.id} />;
   }
 
   render() {
@@ -283,6 +328,7 @@ export class App extends React.PureComponent<{}, AppState> {
       <div id='app'>
         {repoDashboards}
         {this.state.modalWindow}
+        {this.renderCredentialDialog()}
         <NotificationQueue ref={this.notificationQueue} />
       </div>
     );

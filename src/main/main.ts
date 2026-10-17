@@ -1,6 +1,7 @@
 import * as Path from 'path';
 import { app, BrowserWindow, dialog, ipcMain, Menu, MenuItemConstructorOptions, nativeTheme } from 'electron';
 import { setMenu } from './menu';
+import { startCredentialService } from './credentials';
 import { DEFAULT_THEME, getBackgroundColor, SYSTEM_THEME, ThemeManager } from '../shared/theme-manager';
 import { Field, Settings } from '../shared/settings';
 import { SerializedMenuItem, ThemeSource } from '../shared/ipc';
@@ -117,7 +118,11 @@ ipcMain.handle('popup-context-menu', (event, items: SerializedMenuItem[]) => {
   });
 });
 
-app.on('ready', createWindow);
+app.on('ready', async () => {
+  // Before the window, which may start a network command right away
+  await startCredentialService();
+  await createWindow();
+});
 
 app.on('window-all-closed', () => {
   // On OS X it is common for applications and their menu bar
