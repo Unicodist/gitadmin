@@ -16,7 +16,9 @@ export enum Field {
   // Focused references of each repository, by the path of its working directory
   BranchFocus = 'branchFocus',
   // Source branch chosen for the summary of each branch, by the path of the working directory and the branch
-  BranchSummarySources = 'branchSummarySources'
+  BranchSummarySources = 'branchSummarySources',
+  // View of the graph of each repository, by the path of its working directory: list or canvas, filters, minimap
+  GraphView = 'graphView'
 }
 
 function getUserDataPath(): string {
