@@ -10,12 +10,15 @@ const ITEM_HEIGHT = 28;
 
 // Shared by the commits without relations, so that their rows are not rendered again for nothing
 const NO_RELATIONS: RelationLabel[] = [];
+const NO_REFERENCES: string[] = [];
 
 export interface CommitListProps {
   repo: RepoWrapper;
   repoState: RepoState;
   selectedCommit: Commit | null;
   focus: string[];
+  // Commits that match the highlight, the others are dimmed, null when nothing is highlighted
+  matches: Set<string> | null;
   onCommitSelect: (commit: Commit) => void;
   onIndexSelect: () => void;
   onCreateBranch: (commit: Commit) => void;
@@ -178,12 +181,15 @@ export class CommitList extends React.PureComponent<CommitListProps, CommitListS
       const commitSha = commit.sha();
       const repo = this.props.repo;
       const relations = getRelationLabels(commitSha, repo.relations, repo.focusLayout);
+      const references = repo.shaToReferences.get(commitSha) || NO_REFERENCES;
       return (
         <CommitItem
           repo={this.props.repo}
           commit={commit}
           head={this.props.repo.head}
-          references={this.props.repo.shaToReferences.get(commitSha) || []}
+          references={repo.isFiltered() ?
+            references.filter((name) => repo.isBadgeShown(repo.references.get(name)!)) :
+            references}
           selected={this.props.selectedCommit !== null && this.props.selectedCommit.sha() === commit.sha()}
           onCommitSelect={this.props.onCommitSelect}
           onCreateBranch={this.props.onCreateBranch}
@@ -192,6 +198,7 @@ export class CommitList extends React.PureComponent<CommitListProps, CommitListS
           onShowBranchSummary={this.props.onShowBranchSummary}
           color={getCommitColor(repo, commitSha)}
           shared={isSharedCommit(repo, commitSha)}
+          dimmed={this.props.matches !== null && !this.props.matches.has(commitSha)}
           relations={relations.length > 0 ? relations : NO_RELATIONS}
           focus={this.props.focus}
           stash={repo.stashes.get(commitSha)}

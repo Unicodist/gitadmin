@@ -1,0 +1,262 @@
+/* Graph header */
+
+// Above the graph: the list or the canvas, the filters and the highlight
+div.graph-header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 40px;
+  padding: 0 var(--space-2) 0 var(--space-3);
+  border-bottom: 1px solid var(--border);
+  background-color: var(--surface-0);
+  font-size: var(--font-size-sm);
+  container: graph-header / inline-size;
+
+  .segmented-control {
+    flex: none;
+
+    label {
+      height: calc(var(--control-height-sm) - 2px);
+      padding: 0 var(--space-2);
+    }
+  }
+
+  div.graph-highlight {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+    max-width: 320px;
+    margin-left: auto;
+
+    div.search-field {
+      min-width: 0;
+    }
+
+    input {
+      width: 100%;
+      height: var(--control-height-sm);
+      min-width: 0;
+      font-size: var(--font-size-sm);
+    }
+
+    .highlight-count {
+      flex: none;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+  }
+
+  // A narrow header keeps the icons of the views and of the filters
+  @container graph-header (width < 520px) {
+    .segmented-control .button-label,
+    .graph-filters > button .button-label {
+      .visually-hidden();
+    }
+  }
+}
+
+// The button opens a panel of checkboxes over the graph
+div.graph-filters {
+  position: relative;
+  flex: none;
+
+  > button.active-filters {
+    color: var(--accent-text);
+  }
+
+  .filter-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: var(--radius-pill);
+    background-color: var(--accent);
+    color: var(--text-on-accent);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  div.graph-filters-panel {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-2);
+    width: max-content;
+    max-width: 280px;
+    padding: var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background-color: var(--surface-1);
+    box-shadow: var(--shadow-md);
+    font-size: var(--font-size);
+
+    &[hidden] {
+      display: none;
+    }
+
+    p.field-hint {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: var(--font-size-sm);
+      white-space: normal;
+    }
+
+    .check-field:has(input:disabled) {
+      color: var(--text-muted);
+    }
+
+    > button {
+      margin-left: calc(-1 * var(--space-2));
+    }
+  }
+}
+
+/* Commit list */
+
+// Does not match the highlight
+div.commit-list li.commit-item.dimmed-commit {
+  .commit-badges,
+  .commit-summary {
+    opacity: 0.35;
+  }
+}
+
+/* Canvas graph */
+
+div.canvas-graph {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background-color: var(--surface-1);
+  user-select: none;
+
+  > canvas:first-child {
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: grab;
+    touch-action: none;
+
+    &:focus-visible {
+      outline: 2px solid var(--focus-ring);
+      outline-offset: -2px;
+    }
+  }
+
+  &.hovering > canvas:first-child {
+    cursor: pointer;
+  }
+
+  &.dragging > canvas:first-child {
+    cursor: grabbing;
+  }
+
+  // The commit under the pointer
+  div.canvas-hover-card {
+    position: absolute;
+    z-index: 4;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    max-width: 320px;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background-color: var(--surface-1);
+    box-shadow: var(--shadow-md);
+    pointer-events: none;
+
+    .canvas-card-summary {
+      color: var(--text-primary);
+      font-weight: var(--font-weight-semibold);
+      line-height: var(--line-height-tight);
+      overflow-wrap: anywhere;
+    }
+
+    .canvas-card-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 2px var(--space-2);
+      color: var(--text-muted);
+      font-size: var(--font-size-sm);
+
+      code {
+        font-size: var(--font-size-xs);
+      }
+    }
+
+    .canvas-card-references {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-1);
+    }
+
+    .canvas-card-reference {
+      padding: 1px 6px;
+      border: 1px solid var(--branch-color);
+      border-radius: var(--radius-pill);
+      color: var(--branch-color);
+      font-size: var(--font-size-xs);
+      font-weight: var(--font-weight-semibold);
+    }
+  }
+
+  // Above the controls
+  canvas.canvas-minimap {
+    position: absolute;
+    right: var(--space-3);
+    bottom: calc(var(--space-3) + 46px);
+    z-index: 3;
+    width: 132px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background-color: var(--surface-0);
+    box-shadow: var(--shadow-sm);
+    cursor: pointer;
+    touch-action: none;
+  }
+
+  div.canvas-controls {
+    position: absolute;
+    right: var(--space-3);
+    bottom: var(--space-3);
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 3px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background-color: var(--surface-1);
+    box-shadow: var(--shadow-md);
+
+    button[aria-pressed="true"] {
+      background-color: var(--accent-subtle);
+      color: var(--accent-text);
+    }
+
+    output.canvas-zoom {
+      min-width: 44px;
+      color: var(--text-secondary);
+      font-size: var(--font-size-sm);
+      font-variant-numeric: tabular-nums;
+      text-align: center;
+    }
+
+    .canvas-controls-separator {
+      width: 1px;
+      height: 18px;
+      margin: 0 3px;
+      background-color: var(--border);
+    }
+  }
+}

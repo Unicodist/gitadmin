@@ -185,6 +185,19 @@ for (const theme of ['light', 'dark']) {
         await expectScreenshot(page, `commit-${theme}.png`);
       });
 
+      await test.step('canvas', async () => {
+        const header = page.getByRole('group', { name: 'Graph options' });
+        await header.locator('label[for="graph-mode-canvas"]').click();
+        const canvas = page.getByRole('application', { name: 'Commit graph' });
+        await expect(canvas).toBeVisible();
+        await expect(page.locator('canvas.canvas-minimap')).toBeVisible();
+        // The canvas is drawn on the next frame
+        await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        await expectScreenshot(page, `canvas-${theme}.png`);
+        await header.locator('label[for="graph-mode-list"]').click();
+        await expect(page.locator('.commit-list').getByText('Merge the notes')).toBeVisible();
+      });
+
       await test.step('modal', async () => {
         await page.locator('.repo-toolbar').getByRole('button', { name: 'Branch' }).click();
         await expect(page.getByRole('dialog')).toBeVisible();

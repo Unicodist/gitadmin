@@ -16,6 +16,7 @@ import { FocusDialogHandler } from './focus-dialog';
 import { RepoWrapper, PatchType, RepoState, Commit, Patch } from '../helpers/repo-wrapper';
 import { CancellablePromise, makeCancellable } from '../helpers/make-cancellable';
 import { loadFocus, saveFocus } from '../helpers/branch-focus';
+import { GraphView, areFiltersEqual, loadGraphView, saveGraphView } from '../helpers/graph-filters';
 
 export interface RepoDashboardProps {
   repo: RepoWrapper;
@@ -35,6 +36,10 @@ export interface RepoDashboardState {
   patchType: PatchType;
   // Full names of the references whose history the graph shows, everything when it is empty
   focus: string[];
+  // List or canvas, filters and minimap of the graph
+  graphView: GraphView;
+  // Text of the highlight of commits, it is not saved
+  highlight: string;
   // Full name of the branch whose summary is in the right panel, it takes the place of the commit or the index
   summaryBranch: string | null;
   // Branch whose summary the selected commit was opened from, the commit viewer can go back to it
@@ -56,6 +61,8 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
   referencesWatcher: chokidar.FSWatcher;
   // Focus changes whose history is still loading, the last one wins
   focusChanges: number;
+  // Same for the filters
+  filterChanges: number;
 
   constructor(props: RepoDashboardProps) {
     super(props);
@@ -64,12 +71,15 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
     this.rightViewer = React.createRef();
     this.dirtyWorkingDirectory = false;
     this.focusChanges = 0;
+    this.filterChanges = 0;
     this.handleCommitSelect = this.handleCommitSelect.bind(this);
     this.handleIndexSelect = this.handleIndexSelect.bind(this);
     this.handlePatchSelect = this.handlePatchSelect.bind(this);
     this.handlePatchUnselect = this.handlePatchUnselect.bind(this);
     this.handleRightPanelResize = this.handleRightPanelResize.bind(this);
     this.handleFocusChange = this.handleFocusChange.bind(this);
+    this.handleGraphViewChange = this.handleGraphViewChange.bind(this);
+    this.handleHighlightChange = this.handleHighlightChange.bind(this);
     this.openFocusDialog = this.openFocusDialog.bind(this);
     this.handleBranchSummaryShow = this.handleBranchSummaryShow.bind(this);
     this.handleBranchSummaryClose = this.handleBranchSummaryClose.bind(this);
@@ -83,6 +93,8 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
       patchType: PatchType.Committed,
       // The repository opens with the focus it had when it was closed
       focus: loadFocus(this.props.repo.workdir),
+      graphView: loadGraphView(this.props.repo.workdir),
+      highlight: '',
       summaryBranch: null,
       previousSummary: null
     };
@@ -90,6 +102,7 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
 
   async componentDidMount() {
     this.props.repo.focus = this.state.focus;
+    this.props.repo.filters = this.state.graphView.filters;
     this.loadingPromise = makeCancellable(this.props.repo.init());
     try {
       await this.loadingPromise.promise;
@@ -104,9 +117,9 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
   }
 
   componentDidUpdate() {
+    // The list may not be shown yet, the canvas view does not use it
     if (!this.graphShrunk && this.graphViewer.current) {
-      this.graphShrunk = true;
-      this.graphViewer.current.shrinkCanvas();
+      this.graphShrunk = this.graphViewer.current.shrinkCanvas();
     }
   }
 
@@ -219,6 +232,41 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
       this.graphViewer.current.updateGraph();
     }
     this.unselectRemovedCommit();
+  }
+
+  // Saves the view at once, the history is loaded again when the filters change
+  async handleGraphViewChange(view: GraphView) {
+    const repo = this.props.repo;
+    const filtersChanged = !areFiltersEqual(view.filters, this.state.graphView.filters);
+    this.setState({
+      graphView: view
+    });
+    saveGraphView(repo.workdir, view);
+    if (!filtersChanged) {
+      return;
+    }
+    const change = ++this.filterChanges;
+    try {
+      await repo.setFilters(view.filters);
+    } finally {
+      if (change === this.filterChanges) {
+        this.filterChanges = 0;
+      }
+    }
+    // A newer change is still loading
+    if (this.filterChanges !== 0) {
+      return;
+    }
+    if (this.graphViewer.current) {
+      this.graphViewer.current.updateGraph();
+    }
+    this.unselectRemovedCommit();
+  }
+
+  handleHighlightChange(highlight: string) {
+    this.setState({
+      highlight: highlight
+    });
   }
 
   openFocusDialog() {
@@ -338,6 +386,11 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
   }
 
   async handleHeadUpdate() {
+    // The history of the current branch is loaded again when another branch is checked out
+    if (this.props.repo.isFiltered() && this.props.repo.filters.currentBranchOnly) {
+      await this.handleReferencesUpdate();
+      return;
+    }
     await this.props.repo.updateHead();
     await this.props.repo.updateGraph();
     if (this.graphViewer.current) {
@@ -404,6 +457,10 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
           repoState={this.state.repoState}
           selectedCommit={this.state.selectedCommit}
           focus={this.state.focus}
+          graphView={this.state.graphView}
+          highlight={this.state.highlight}
+          onGraphViewChange={this.handleGraphViewChange}
+          onHighlightChange={this.handleHighlightChange}
           onCommitSelect={this.handleCommitSelect}
           onIndexSelect={this.handleIndexSelect}
           onCreateBranch={this.props.onCreateBranch}

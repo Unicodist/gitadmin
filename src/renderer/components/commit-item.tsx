@@ -24,6 +24,8 @@ export interface CommitItemProps {
   color: string;
   // All the focused references have the commit
   shared: boolean;
+  // Does not match the highlight
+  dimmed: boolean;
   // How the commit relates to the focused references: merge base, fork point, merge
   relations: RelationLabel[];
   focus: string[];
@@ -130,6 +132,9 @@ export class CommitItem extends React.PureComponent<CommitItemProps, {}> {
     }
     if (this.props.shared) {
       classNames.push('shared-commit');
+    }
+    if (this.props.dimmed) {
+      classNames.push('dimmed-commit');
     }
     return (
       <li className={classNames.join(' ')}
