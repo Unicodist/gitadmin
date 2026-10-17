@@ -59,7 +59,7 @@ jobs:
     needs: prepare
     uses: ./.github/workflows/ci.yml
     with:
-      installers: false
+      skip_installers: true
 
   make:
     name: Make (${{ matrix.platform }} ${{ matrix.arch }})

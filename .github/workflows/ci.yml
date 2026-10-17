@@ -7,10 +7,10 @@ on:
   # Run by the release workflow before it builds the installers
   workflow_call:
     inputs:
-      installers:
-        description: Build the installers of the current architecture of each OS
+      skip_installers:
+        description: Do not build the installers of the current architecture of each OS
         type: boolean
-        default: true
+        default: false
 
 jobs:
   check:
@@ -51,8 +51,10 @@ jobs:
   package:
     name: Build installers (${{ matrix.os }})
     needs: check
-    # The release workflow builds them for every architecture itself
-    if: inputs.installers != false
+    # The release workflow builds them for every architecture itself. On push and
+    # pull_request there are no inputs and inputs.skip_installers is null, which is
+    # falsy (whereas null != false is false, since null and false compare as 0)
+    if: ${{ !inputs.skip_installers }}
     strategy:
       fail-fast: false
       matrix:
