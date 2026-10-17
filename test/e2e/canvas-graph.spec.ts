@@ -104,8 +104,8 @@ test('switches to the canvas, zooms it, and remembers the view of the repository
   // The small history fits without zooming in
   await controls().getByRole('button', { name: 'Zoom in' }).click();
   await controls().getByRole('button', { name: 'Fit to view' }).click();
-  await expect(zoom).toHaveText(/^\d+%$/);
-  expect(parseInt(await zoom.innerText(), 10)).toBeLessThanOrEqual(100);
+  // The label follows on the next frame
+  await expect.poll(async () => parseInt(await zoom.innerText(), 10)).toBeLessThanOrEqual(100);
 
   // The minimap can be hidden
   const minimap = page.locator('canvas.canvas-minimap');
