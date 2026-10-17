@@ -14,7 +14,12 @@ const DOT_RADIUS = 3.5;
 
 export interface GraphCanvasProps {
   repo: RepoWrapper;
+  // Commits that match the highlight, the others are dimmed
+  matches: Set<string> | null;
 }
+
+// Opacity of the commits that do not match the highlight
+const DIMMED_ALPHA = 0.25;
 
 export class GraphCanvas extends React.PureComponent<GraphCanvasProps, {}> {
   canvas: React.RefObject<HTMLCanvasElement | null>;
@@ -29,6 +34,17 @@ export class GraphCanvas extends React.PureComponent<GraphCanvasProps, {}> {
     this.canvas = React.createRef<HTMLCanvasElement>();
     this.offset = 0;
     this.cssColors = new Map<string, string>();
+  }
+
+  componentDidUpdate(prevProps: GraphCanvasProps) {
+    if (prevProps.matches !== this.props.matches) {
+      this.drawGraph();
+    }
+  }
+
+  isDimmed(i: number) {
+    const commit = this.props.repo.commits[i - 1];
+    return this.props.matches !== null && commit !== undefined && !this.props.matches.has(commit.sha());
   }
 
   handleScroll(offset: number, start: number, end: number) {
@@ -147,6 +163,7 @@ export class GraphCanvas extends React.PureComponent<GraphCanvasProps, {}> {
       const [i, j, type] = repo.graph.positions.get(sha)!;
       const [x, y] = this.computeNodeCenterCoordinates(i, j);
       ctx.fillStyle = this.getRowColor(i, j);
+      ctx.globalAlpha = this.isDimmed(i) ? DIMMED_ALPHA : 1;
       ctx.beginPath();
       if (type === NodeType.Commit) {
         ctx.arc(x, y, RADIUS, 0, 2 * Math.PI, true);
@@ -168,6 +185,7 @@ export class GraphCanvas extends React.PureComponent<GraphCanvasProps, {}> {
         ctx.fill();
       }
     }
+    ctx.globalAlpha = 1;
   }
 
   drawEdges(ctx: CanvasRenderingContext2D) {
@@ -178,6 +196,7 @@ export class GraphCanvas extends React.PureComponent<GraphCanvasProps, {}> {
     for (const [[i0, j0], [i1, j1], type] of edges.search(this.start, this.end)) {
       const [x0, y0] = this.computeNodeCenterCoordinates(i0, j0);
       const [x1, y1] = this.computeNodeCenterCoordinates(i1, j1);
+      ctx.globalAlpha = this.isDimmed(i0) && this.isDimmed(i1) ? DIMMED_ALPHA : 1;
       ctx.beginPath();
       if (j0 !== j1 && type === EdgeType.Merge) {
         ctx.strokeStyle = this.getRowColor(i1, j1);
@@ -207,6 +226,7 @@ export class GraphCanvas extends React.PureComponent<GraphCanvasProps, {}> {
       ctx.lineTo(x1, y1);
       ctx.stroke();
     }
+    ctx.globalAlpha = 1;
   }
 
   computeNodeCenterCoordinates(i: number, j: number) {
