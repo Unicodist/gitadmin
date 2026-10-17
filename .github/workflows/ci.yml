@@ -67,9 +67,10 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      # The runners have dpkg and fakeroot for the deb package but not rpmbuild for the rpm package
+      # The runners have dpkg and fakeroot for the deb package but not rpmbuild for the rpm
+      # package or mksquashfs for the AppImage
       - if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y rpm
+        run: sudo apt-get update && sudo apt-get install -y rpm squashfs-tools
       - run: npm run make
       - uses: actions/upload-artifact@v4
         with:
