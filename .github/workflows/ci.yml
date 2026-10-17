@@ -4,6 +4,13 @@ on:
   push:
     branches: [master]
   pull_request:
+  # Run by the release workflow before it builds the installers
+  workflow_call:
+    inputs:
+      installers:
+        description: Build the installers of the current architecture of each OS
+        type: boolean
+        default: true
 
 jobs:
   check:
@@ -44,6 +51,8 @@ jobs:
   package:
     name: Build installers (${{ matrix.os }})
     needs: check
+    # The release workflow builds them for every architecture itself
+    if: inputs.installers != false
     strategy:
       fail-fast: false
       matrix:
