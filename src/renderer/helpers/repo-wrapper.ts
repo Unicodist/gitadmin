@@ -9,6 +9,7 @@ import { Commit, DiffFile, DiffLine, Hunk, Patch, PatchStatus, Reference, Stash 
 import { COMMIT_FORMAT, DiffEntry, REFERENCE_FORMAT, parseCommits, parseDiffSummary, parseHunks, parseReferences } from './git/parsers';
 import { ApplyDirection, buildPartialPatch } from './git/partial-patch';
 import { BranchComparison, BranchRelations, FocusLayout, ForkPoint, computeFocusLayout, pruneFocus, renameInFocus } from './branch-focus';
+import { GraphFilters, NO_FILTERS, isFiltering, showsReference, showsStashes } from './graph-filters';
 
 export { Commit, DiffFile, DiffLine, Hunk, Patch, PatchStatus, Reference, Stash } from './git/model';
 
@@ -124,8 +125,10 @@ export class RepoWrapper {
   graph: CommitGraph;
   unstagedPatches: Patch[];
   stagedPatches: Patch[];
-  // Full names of the references whose history is loaded, every reference and stash when it is empty
+  // Full names of the references whose history is loaded, every reference and stash that the filters keep when it is empty
   focus: string[];
+  // Kinds of references left out of the graph while it is not focused
+  filters: GraphFilters;
   // Relations between the focused references, null when fewer than two are focused
   relations: BranchRelations | null;
   // Colors and merges of the focused history, null when fewer than two references are focused
@@ -137,6 +140,7 @@ export class RepoWrapper {
   headName: string | null;
   headSha: string | null;
   relationsKey: string; // Focused references and their commits when the relations were computed
+  loadedHeadName: string | null | undefined; // Head when the commits were loaded, the current branch filter follows it
   getIdentity: () => Identity | null;
 
   constructor(location: RepoLocation, onNotification: (message: string, type: NotificationType) => void, options: RepoWrapperOptions = {}) {
@@ -157,6 +161,7 @@ export class RepoWrapper {
     this.unstagedPatches = [];
     this.stagedPatches = [];
     this.focus = [];
+    this.filters = NO_FILTERS;
     this.relations = null;
     this.focusLayout = null;
     this.onNotification = onNotification;
@@ -165,6 +170,7 @@ export class RepoWrapper {
     this.headName = null;
     this.headSha = null;
     this.relationsKey = '';
+    this.loadedHeadName = undefined;
     this.getIdentity = options.getIdentity || getIdentityFromSettings;
   }
 
@@ -186,26 +192,34 @@ export class RepoWrapper {
     await this.updateCommitsPromise;
   }
 
-  // Loads the new commits, or all of them again when the focus changes
-  async updateCommits(focus?: string[]) {
+  // Loads the new commits, or all of them again when the focus or the filters change
+  async updateCommits(focus?: string[], filters?: GraphFilters) {
     let referencesToUpdate = await this.updateReferences();
     let stashesToUpdate = await this.updateStashes();
     await this.readHead();
     // A focused reference may have been removed
     const newFocus = pruneFocus(focus || this.focus, this.references);
-    const reload = newFocus !== this.focus;
+    const newFilters = filters || this.filters;
+    const focused = newFocus.length > 0;
+    // The filters only apply without a focus, and the current branch changes with the head
+    const filtersChanged = newFilters !== this.filters || (newFilters.currentBranchOnly && this.headName !== this.loadedHeadName);
+    const reload = newFocus !== this.focus || (!focused && filtersChanged);
     if (reload) {
       referencesToUpdate = [...this.references.values()];
       stashesToUpdate = [...this.stashes.values()];
     }
-    const focused = newFocus.length > 0;
-    const tips = focused ? referencesToUpdate.filter((reference) => newFocus.includes(reference.name())) : referencesToUpdate;
+    const tips = focused ?
+      referencesToUpdate.filter((reference) => newFocus.includes(reference.name())) :
+      referencesToUpdate.filter((reference) => showsReference(newFilters, reference, this.headName));
+    const stashes = focused || !showsStashes(newFilters) ? [] : stashesToUpdate;
     // The commits are only replaced once they are all read, the lists keep showing the previous ones in the meantime
-    const newCommits = await this.readNewCommits(tips, focused ? [] : stashesToUpdate, !focused, reload);
+    const newCommits = await this.readNewCommits(tips, stashes, !focused, reload);
     if (reload) {
       this.focus = newFocus;
       this.clearCommits();
     }
+    this.filters = newFilters;
+    this.loadedHeadName = this.headName;
     this.addCommits(newCommits);
     this.updateShaToReferences();
     this.getParents(newCommits);
@@ -236,6 +250,20 @@ export class RepoWrapper {
     this.updateGraph();
   }
 
+  // True if the filters leave references out of the graph, they wait while it is focused
+  isFiltering() {
+    return !this.isFocused() && isFiltering(this.filters);
+  }
+
+  // Leaves kinds of references out of the graph while it is not focused
+  async setFilters(filters: GraphFilters) {
+    // Queued like the other updates, a new object is always different from the current one
+    this.updateCommitsPromise = this.updateCommitsPromise.then(() => this.updateCommits(undefined, { ...filters }));
+    await this.updateCommitsPromise;
+    await this.updateHead();
+    this.updateGraph();
+  }
+
   clearCommits() {
     this.commits = [];
     this.shaToCommit.clear();
@@ -244,7 +272,7 @@ export class RepoWrapper {
     this.children.clear();
   }
 
-  // True if the history of the reference is not loaded because of the focus
+  // True if the history of the reference is not loaded because of the focus or the filters
   isHidden(reference: Reference) {
     return !this.shaToCommit.has(reference.commitId);
   }
@@ -277,9 +305,13 @@ export class RepoWrapper {
     return stashesToUpdate;
   }
 
+  // The focus keeps the badges of every reference, the filters hide the badges of the references they leave out
   updateShaToReferences() {
     this.shaToReferences.clear();
     for (const [name, reference] of this.references) {
+      if (!this.isFocused() && !showsReference(this.filters, reference, this.headName)) {
+        continue;
+      }
       const commitSha = reference.commitId;
       if (!this.shaToReferences.has(commitSha)) {
         this.shaToReferences.set(commitSha, []);
@@ -349,7 +381,12 @@ export class RepoWrapper {
     const alreadyAdded = new Set<string>();
     const frontier: string[] = this.isFocused() ?
       this.focus.map((name) => this.references.get(name)!.commitId) :
-      [...Array.from(this.references.values(), (reference) => reference.commitId), ...this.stashes.keys()];
+      [
+        ...Array.from(this.references.values())
+          .filter((reference) => showsReference(this.filters, reference, this.headName))
+          .map((reference) => reference.commitId),
+        ...(showsStashes(this.filters) ? this.stashes.keys() : [])
+      ];
     if (this.headSha && !this.isFocused()) {
       frontier.push(this.headSha);
     }

@@ -14,7 +14,9 @@ export enum Field {
   Theme = 'theme',
   FontSize = 'fontSize',
   // Focused references of each repository, by the path of its working directory
-  BranchFocus = 'branchFocus'
+  BranchFocus = 'branchFocus',
+  // Quick filters of the graph of each repository, by the path of its working directory
+  GraphFilters = 'graphFilters'
 }
 
 function getUserDataPath(): string {
