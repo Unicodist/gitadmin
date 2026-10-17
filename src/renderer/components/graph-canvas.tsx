@@ -125,7 +125,7 @@ export class GraphCanvas extends React.PureComponent<GraphCanvasProps, {}> {
     return this.resolveColor(getCommitColor(repo, commit.sha()));
   }
 
-  // The canvas does not understand var(--name), the colors of the theme are read from the page
+  // The canvas does not understand CSS variables, the colors of the theme are read from the page
   resolveColor(color: string) {
     const match = /^var\((--[\w-]+)\)$/.exec(color);
     if (!match || !this.canvas.current) {

@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { RepoDashboard } from './repo-dashboard';
-import { RepoWrapper, RepoLocation, Commit } from '../helpers/repo-wrapper';
+import { RepoWrapper, RepoLocation, Commit, Reference } from '../helpers/repo-wrapper';
 import { setThemeSource, showOpenDirectoryDialog } from '../helpers/native';
 import { registerEditorTheme } from '../helpers/monaco-loader';
 import { NotificationQueue } from './notification-queue';
@@ -15,6 +15,7 @@ import { Field, Settings } from '../../shared/settings';
 import { DEFAULT_THEME, getBackgroundColor, getEditorThemeData, getEditorThemeName, SYSTEM_THEME, ThemeManager }
   from '../../shared/theme-manager';
 import { InputDialog } from './input-dialog';
+import { FocusDialog } from './focus-dialog';
 
 export interface AppState {
   repos: RepoWrapper[];
@@ -57,6 +58,7 @@ export class App extends React.PureComponent<{}, AppState> {
     this.openOpenRepoDialog = this.openOpenRepoDialog.bind(this);
     this.openCreateBranchDialog = this.openCreateBranchDialog.bind(this);
     this.openInputDialog = this.openInputDialog.bind(this);
+    this.openFocusDialog = this.openFocusDialog.bind(this);
     this.showNotification = this.showNotification.bind(this);
     this.closeModalWindow = this.closeModalWindow.bind(this);
   }
@@ -245,6 +247,17 @@ export class App extends React.PureComponent<{}, AppState> {
     });
   }
 
+  openFocusDialog(references: Reference[], focus: string[], onFocusChange: (focus: string[]) => void) {
+    const element = <FocusDialog title='Focus on branches'
+      references={references}
+      focus={focus}
+      onFocusChange={onFocusChange}
+      onClose={this.closeModalWindow} />;
+    this.setState({
+      modalWindow: element
+    });
+  }
+
   closeModalWindow() {
     this.setState({
       modalWindow: null
@@ -264,6 +277,7 @@ export class App extends React.PureComponent<{}, AppState> {
         onRepoClose={() => this.closeRepo(i)}
         onCreateBranch={this.openCreateBranchDialog}
         onOpenInputDialog={this.openInputDialog}
+        onOpenFocusDialog={this.openFocusDialog}
         key={repo.path} />);
     return (
       <div id='app'>

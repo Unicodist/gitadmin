@@ -71,6 +71,43 @@ div.reference-explorer {
         color: var(--accent-text);
       }
     }
+
+    // The focus leaves its history out of the graph
+    &.hidden-by-focus {
+      color: var(--text-muted);
+
+      svg.icon {
+        color: var(--text-muted);
+      }
+    }
+  }
+
+  /* Focus */
+
+  // The checkbox takes the place of the icon of its row, so that the row does not move when it shows
+  li.reference-row {
+    position: relative;
+  }
+
+  input.focus-checkbox {
+    position: absolute;
+    top: 6px;
+    left: calc(var(--space-2) + (@icon-size - 14px) / 2);
+    opacity: 0;
+    transition: opacity var(--duration-fast) var(--easing);
+  }
+
+  li.reference-row:hover,
+  li.reference-row:focus-within,
+  li.reference-row.focused,
+  nav.focused li.reference-row {
+    input.focus-checkbox {
+      opacity: 1;
+    }
+
+    svg.reference-icon {
+      visibility: hidden;
+    }
   }
 
   /* Sections */

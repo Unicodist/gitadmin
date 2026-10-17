@@ -3,18 +3,24 @@ import { CommitItem, getCommitItemId } from './commit-item';
 import { IndexItem, INDEX_ITEM_ID } from './index-item';
 import { InputDialogHandler } from './input-dialog';
 import { RepoWrapper, RepoState, Commit } from '../helpers/repo-wrapper';
-import { getBranchColor } from '../helpers/commit-graph';
+import { getCommitColor, isSharedCommit } from '../helpers/commit-graph';
+import { getRelationLabels, RelationLabel } from '../helpers/branch-focus';
 
 const ITEM_HEIGHT = 28;
+
+// Shared by the commits without relations, so that their rows are not rendered again for nothing
+const NO_RELATIONS: RelationLabel[] = [];
 
 export interface CommitListProps {
   repo: RepoWrapper;
   repoState: RepoState;
   selectedCommit: Commit | null;
+  focus: string[];
   onCommitSelect: (commit: Commit) => void;
   onIndexSelect: () => void;
   onCreateBranch: (commit: Commit) => void;
   onOpenInputDialog: InputDialogHandler;
+  onFocusChange: (focus: string[]) => void;
   onScroll: (height: number, start: number, end: number) => void;
   onResize: (offset: number, start: number, end: number) => void;
   onStateUpdate: (start: number, end: number) => void;
@@ -86,10 +92,11 @@ export class CommitList extends React.PureComponent<CommitListProps, CommitListS
         this.props.onIndexSelect();
       }
     } else if (event.keyCode === 40) {
-      let i = this.props.selectedCommit ?
-        this.props.repo.shaToIndex.get(this.props.selectedCommit.sha())! : -1;
+      let i = this.getIndexOfSelectedCommit();
       i = Math.min(i + 1, this.props.repo.commits.length - 1);
-      this.props.onCommitSelect(this.props.repo.commits[i]);
+      if (i >= 0) {
+        this.props.onCommitSelect(this.props.repo.commits[i]);
+      }
     }
   }
 
@@ -102,8 +109,11 @@ export class CommitList extends React.PureComponent<CommitListProps, CommitListS
   }
 
   scrollToItem() {
-    // Scroll so that the commit is visible
+    // Scroll so that the commit is visible, unless it is not in the list
     const i = this.getIndexOfSelectedCommit();
+    if (i === -1 && this.props.selectedCommit !== null) {
+      return;
+    }
     if (i <= this.state.start && this.div.current) {
       this.div.current.scrollTo(0, (i + 1) * ITEM_HEIGHT);
     }
@@ -139,19 +149,19 @@ export class CommitList extends React.PureComponent<CommitListProps, CommitListS
     };
   }
 
+  // A stash selected while the graph is focused is not in the list, the arrows then start from the index
   getIndexOfSelectedCommit() {
-    return this.props.selectedCommit ?
-      this.props.repo.shaToIndex.get(this.props.selectedCommit.sha())! :
-      -1;
+    const i = this.props.selectedCommit ? this.props.repo.shaToIndex.get(this.props.selectedCommit.sha()) : undefined;
+    return i !== undefined ? i : -1;
   }
 
   // Row of the selection, for assistive technologies, if it is rendered
   getActiveDescendant() {
     const i = this.getIndexOfSelectedCommit();
-    if (i === -1) {
+    if (this.props.selectedCommit === null) {
       return this.state.start === -1 ? INDEX_ITEM_ID : undefined;
     }
-    return i >= this.state.start && i < this.state.end ? getCommitItemId(this.props.selectedCommit!.sha()) : undefined;
+    return i !== -1 && i >= this.state.start && i < this.state.end ? getCommitItemId(this.props.selectedCommit!.sha()) : undefined;
   }
 
   render() {
@@ -165,7 +175,8 @@ export class CommitList extends React.PureComponent<CommitListProps, CommitListS
     const commits = this.props.repo.commits.slice(Math.max(this.state.start, 0), this.state.end);
     items.push(...commits.map((commit: Commit) => {
       const commitSha = commit.sha();
-      const color = getBranchColor(this.props.repo.graph.positions.get(commitSha)![1]);
+      const repo = this.props.repo;
+      const relations = getRelationLabels(commitSha, repo.relations, repo.focusLayout);
       return (
         <CommitItem
           repo={this.props.repo}
@@ -176,8 +187,12 @@ export class CommitList extends React.PureComponent<CommitListProps, CommitListS
           onCommitSelect={this.props.onCommitSelect}
           onCreateBranch={this.props.onCreateBranch}
           onOpenInputDialog={this.props.onOpenInputDialog}
-          color={color}
-          stash={this.props.repo.stashes.get(commitSha)}
+          onFocusChange={this.props.onFocusChange}
+          color={getCommitColor(repo, commitSha)}
+          shared={isSharedCommit(repo, commitSha)}
+          relations={relations.length > 0 ? relations : NO_RELATIONS}
+          focus={this.props.focus}
+          stash={repo.stashes.get(commitSha)}
           key={commit.sha()} />
       );
     }));

@@ -59,6 +59,38 @@ div.commit-list {
     flex-shrink: 0;
   }
 
+  // How the commit relates to the focused branches, after the references. The merge base has the color of
+  // the accent, the forks and the merges the color of their row.
+  .relation-badge {
+    .commit-badge();
+    flex: 0 1 auto;
+    max-width: max-content;
+    border-style: dashed;
+
+    &.merge-base {
+      --branch-color: var(--accent);
+    }
+  }
+
+  .relation-badge-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: var(--line-height);
+  }
+
+  // A narrow row keeps their icons, their sentences stay in the tooltips and for the screen readers
+  @container commit-item (width < 400px) {
+    .relation-badge {
+      flex-shrink: 0;
+      padding: 0 6px;
+
+      .relation-badge-text {
+        display: none;
+      }
+    }
+  }
+
   // The +N pill of the folded badges, for narrow rows only
   .folded-badges {
     .commit-badge();

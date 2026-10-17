@@ -251,7 +251,7 @@ export function getRelationLabels(sha: string, relations: BranchRelations | null
       const into = merge.into === null ? null : shortenReferenceName(layout.references[merge.into]);
       labels.push({
         kind: RelationKind.Merge,
-        text: into ? `${from} → ${into}` : `${from} merged`,
+        text: into ? `${from} into ${into}` : `${from} merged`,
         description: into ? `Merges ${from} into ${into}` : `Merges ${from}`
       });
     }

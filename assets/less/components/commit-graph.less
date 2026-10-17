@@ -4,11 +4,21 @@ div.graph-viewer {
   .left-viewer();
   display: flex;
 
+  // The focus bar, while the graph is focused, then the graph under it
   div.graph-container {
     position: relative;
     flex: 1;
+    display: flex;
+    flex-direction: column;
     min-width: calc(var(--canvas-width) + @commit-list-min-width);
     background-color: var(--surface-1);
+  }
+
+  // The canvas and the list are positioned in it, they scroll together
+  div.graph-area {
+    position: relative;
+    flex: 1;
+    min-height: 0;
   }
 }
 
@@ -92,6 +102,11 @@ div.commit-list {
       &:hover {
         background-color: var(--selected-hover);
       }
+    }
+
+    // All the focused branches have it, like their gray part of the graph
+    &.shared-commit .commit-summary {
+      color: var(--text-muted);
     }
   }
 

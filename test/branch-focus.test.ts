@@ -192,7 +192,7 @@ describe('getRelationLabels', () => {
       merges: new Map([['m', [{ from: 1, into: 0 }]], ['n', [{ from: 0, into: null }]]])
     };
     assert.deepEqual(getRelationLabels('m', null, layout), [
-      { kind: RelationKind.Merge, text: 'feature → main', description: 'Merges feature into main' }
+      { kind: RelationKind.Merge, text: 'feature into main', description: 'Merges feature into main' }
     ]);
     assert.deepEqual(getRelationLabels('n', null, layout), [
       { kind: RelationKind.Merge, text: 'main merged', description: 'Merges main' }
