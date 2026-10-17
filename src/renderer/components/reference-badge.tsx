@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { RepoWrapper, Reference } from '../helpers/repo-wrapper';
-import { createReferenceContextMenu, FocusChangeHandler } from '../helpers/reference-context-menu';
+import { BranchSummaryHandler, createReferenceContextMenu, FocusChangeHandler } from '../helpers/reference-context-menu';
 import { IconName } from '../helpers/icons';
 import { InputDialogHandler } from './input-dialog';
 import { Icon } from './icon';
@@ -13,6 +13,7 @@ export class ReferenceBadgeProps {
   focus: string[];
   onOpenInputDialog: InputDialogHandler;
   onFocusChange: FocusChangeHandler;
+  onShowBranchSummary: BranchSummaryHandler;
 }
 
 export function getReferenceIcon(reference: Reference): IconName {
@@ -35,7 +36,7 @@ export class ReferenceBadge extends React.PureComponent<ReferenceBadgeProps, {}>
     event.preventDefault();
     event.stopPropagation();
     const menu = createReferenceContextMenu(this.props.repo, this.props.reference, this.props.selected, this.props.onOpenInputDialog,
-      this.props.focus, this.props.onFocusChange);
+      this.props.focus, this.props.onFocusChange, this.props.onShowBranchSummary);
     menu.popup();
   }
 

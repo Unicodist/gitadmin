@@ -13,6 +13,7 @@ export interface ReferenceListProps {
   focus: string[];
   onOpenInputDialog: InputDialogHandler;
   onFocusChange: (focus: string[]) => Promise<void>;
+  onShowBranchSummary: (branch: string) => void;
   onClick: (commit: Commit) => void;
 }
 
@@ -62,6 +63,7 @@ export class ReferenceList extends React.PureComponent<ReferenceListProps, Refer
           hidden={this.props.repo.isFocused() && this.props.repo.isHidden(reference)}
           onOpenInputDialog={this.props.onOpenInputDialog}
           onFocusChange={this.props.onFocusChange}
+          onShowBranchSummary={this.props.onShowBranchSummary}
           onClick={() => this.handleItemClick(reference)}
           key={name} />;
       });

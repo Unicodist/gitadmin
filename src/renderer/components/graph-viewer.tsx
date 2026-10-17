@@ -17,6 +17,8 @@ export interface GraphViewerProps {
   onCreateBranch: (commit: Commit) => void;
   onOpenInputDialog: InputDialogHandler;
   onFocusChange: (focus: string[]) => Promise<void>;
+  // Opens the summary of a branch, from the context menu of the explorer and of the badges
+  onShowBranchSummary: (branch: string) => void;
   onOpenFocusDialog: () => void;
 }
 
@@ -131,6 +133,7 @@ export class GraphViewer extends React.PureComponent<GraphViewerProps, {}> {
           onIndexSelect={this.handleIndexSelect}
           onOpenInputDialog={this.props.onOpenInputDialog}
           onFocusChange={this.props.onFocusChange}
+          onShowBranchSummary={this.props.onShowBranchSummary}
           ref={this.referenceExplorer} />
         <Splitter label='Resize the references panel' onDrag={this.handleLeftPanelResize} />
         <div className='graph-container'>

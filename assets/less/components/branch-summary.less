@@ -1,0 +1,259 @@
+/* Branch summary viewer */
+
+// In the right panel like the commit viewer, whose header, cards and details it shares. The summary
+// is long, so the whole body scrolls instead of the list of the files.
+.branch-summary-viewer {
+  .viewer-actions {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    // The last button sits at the padding of the header, like the copy button of the commit viewer
+    margin-right: calc(-1 * var(--space-2));
+  }
+
+  button.copy-markdown-button {
+    // The tooltip says Copied, for the keyboard too
+    &:focus-visible .tooltip-text {
+      visibility: visible;
+      opacity: 1;
+    }
+  }
+
+  .viewer-body {
+    overflow-y: auto;
+
+    & > * {
+      flex: none;
+    }
+  }
+
+  .branch-summary-header {
+    max-height: none;
+
+    h2 {
+      overflow-wrap: anywhere;
+    }
+  }
+
+  p.branch-summary-fork {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    overflow-wrap: anywhere;
+
+    strong {
+      color: var(--text-primary);
+      font-weight: var(--font-weight-semibold);
+    }
+
+    &.missing-fork {
+      color: var(--text-muted);
+    }
+  }
+
+  // The dropdown takes the room left by its label
+  label.branch-summary-source {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+
+    .select {
+      flex: 1;
+      min-width: 0;
+    }
+
+    select {
+      height: var(--control-height-sm);
+      font-size: var(--font-size-sm);
+    }
+  }
+
+  // The statistics follow their label
+  .section-label + ul.commit-details {
+    margin-top: 0;
+  }
+
+  .ahead-behind,
+  .stat-value {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .line-changes {
+    display: inline-flex;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    white-space: nowrap;
+
+    &.binary {
+      color: var(--text-muted);
+      font-family: var(--font-family);
+    }
+  }
+
+  .lines-added {
+    color: var(--success);
+  }
+
+  .lines-removed {
+    color: var(--danger);
+  }
+
+  // Under the statistics, the authors line up with the text of the details
+  ul.branch-summary-authors {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: calc(-1 * var(--space-2)) 0 var(--space-4);
+    padding: 0 calc(var(--space-3) + 1px) 0 calc(var(--space-3) + 1px + 14px + var(--space-2));
+    list-style: none;
+    font-size: var(--font-size-sm);
+
+    li {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: var(--space-2);
+      min-width: 0;
+    }
+
+    .author-name {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .author-commits {
+      flex: none;
+      color: var(--text-muted);
+    }
+  }
+
+  div.merge-check {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+
+    &.clean {
+      background-color: var(--success-subtle);
+      color: var(--success);
+    }
+
+    &.conflicts {
+      margin-bottom: var(--space-2);
+      background-color: var(--danger-subtle);
+      color: var(--danger);
+    }
+  }
+
+  ul.conflicting-files {
+    margin: 0 0 var(--space-4);
+    padding: 0 calc(var(--space-3) + 1px);
+    list-style: none;
+    font-size: var(--font-size-sm);
+
+    li {
+      padding: 2px 0;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  // The boxes of the commits and of the most changed files look like the list of the files
+  ul.branch-summary-commits,
+  ul.most-changed {
+    margin: 0 0 var(--space-4);
+    padding: var(--space-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background-color: var(--surface-1);
+    list-style: none;
+  }
+
+  button.branch-summary-commit,
+  .most-changed-item {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: var(--space-2);
+    width: 100%;
+    height: 28px;
+    padding: 0 var(--space-2);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: var(--font-size);
+    font-weight: normal;
+    text-align: left;
+  }
+
+  button.most-changed-item:hover {
+    color: var(--text-primary);
+  }
+
+  .commit-sha {
+    flex: none;
+    color: var(--accent-text);
+    font-size: var(--font-size-sm);
+  }
+
+  .commit-summary,
+  .changed-path {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .changed-path {
+    font-size: var(--font-size-sm);
+  }
+
+  // A merge that brought the source in
+  .synced-badge {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: var(--radius-pill);
+    background-color: var(--accent-subtle);
+    color: var(--accent-text);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  p.branch-summary-empty {
+    margin: 0 0 var(--space-4);
+    color: var(--text-muted);
+    font-size: var(--font-size-sm);
+  }
+
+  // The files follow the other sections, the body scrolls
+  ul.patch-list {
+    flex: none;
+    overflow-y: visible;
+  }
+
+  div.branch-summary-status {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) 0;
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+
+    &.error {
+      color: var(--danger);
+      overflow-wrap: anywhere;
+    }
+  }
+}

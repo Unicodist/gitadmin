@@ -5,6 +5,7 @@ import * as React from 'react';
 import { GraphViewer } from './graph-viewer';
 import { CommitViewer } from './commit-viewer';
 import { IndexViewer } from './index-viewer';
+import { BranchSummaryViewer } from './branch-summary-viewer';
 import { PatchViewer } from './patch-viewer';
 import { TextPatchViewerOptions } from './text-patch-viewer';
 import { Splitter } from './splitter';
@@ -34,6 +35,8 @@ export interface RepoDashboardState {
   patchType: PatchType;
   // Full names of the references whose history the graph shows, everything when it is empty
   focus: string[];
+  // Full name of the branch whose summary is in the right panel, it takes the place of the commit or the index
+  summaryBranch: string | null;
 }
 
 export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoDashboardState> {
@@ -42,7 +45,7 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
   graphShrunk: boolean;
   // References
   graphViewer: React.RefObject<GraphViewer | null>;
-  rightViewer: React.RefObject<CommitViewer | IndexViewer | null>;
+  rightViewer: React.RefObject<CommitViewer | IndexViewer | BranchSummaryViewer | null>;
   // Watches
   repositoryWatcher: fs.FSWatcher;
   dirtyWorkingDirectory: boolean;
@@ -66,6 +69,9 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
     this.handleRightPanelResize = this.handleRightPanelResize.bind(this);
     this.handleFocusChange = this.handleFocusChange.bind(this);
     this.openFocusDialog = this.openFocusDialog.bind(this);
+    this.handleBranchSummaryShow = this.handleBranchSummaryShow.bind(this);
+    this.handleBranchSummaryClose = this.handleBranchSummaryClose.bind(this);
+    this.handleSummaryCommitSelect = this.handleSummaryCommitSelect.bind(this);
     this.state = {
       repoState: this.props.repo.getState(),
       loadingState: LoadingState.NotLoading,
@@ -73,7 +79,8 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
       selectedPatch: null,
       patchType: PatchType.Committed,
       // The repository opens with the focus it had when it was closed
-      focus: loadFocus(this.props.repo.workdir)
+      focus: loadFocus(this.props.repo.workdir),
+      summaryBranch: null
     };
   }
 
@@ -109,7 +116,8 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
   handleCommitSelect(commit: Commit) {
     return new Promise<void>((resolve) => {
       this.setState({
-        selectedCommit: commit
+        selectedCommit: commit,
+        summaryBranch: null
       }, () => resolve());
     });
   }
@@ -117,9 +125,34 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
   handleIndexSelect() {
     return new Promise<void>((resolve) => {
       this.setState({
-        selectedCommit: null
+        selectedCommit: null,
+        summaryBranch: null
       }, () => resolve());
     });
+  }
+
+  // Shows the summary of a branch in the right panel, the selection of the graph stays as it is
+  handleBranchSummaryShow(branch: string) {
+    this.setState({
+      summaryBranch: branch,
+      selectedPatch: null
+    });
+  }
+
+  // Goes back to the selected commit, or to the index
+  handleBranchSummaryClose() {
+    this.setState({
+      summaryBranch: null
+    });
+  }
+
+  // A commit of the summary is selected in the graph, so that the list scrolls to it
+  handleSummaryCommitSelect(commit: Commit) {
+    if (this.graphViewer.current) {
+      this.graphViewer.current.handleCommitSelect(commit);
+    } else {
+      this.handleCommitSelect(commit);
+    }
   }
 
   handlePatchSelect(patch: Patch | null, type: PatchType) {
@@ -191,7 +224,14 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
     const repo = this.props.repo;
     const commit = this.state.selectedCommit;
     if (commit && !repo.shaToCommit.has(commit.sha()) && !repo.stashes.has(commit.sha())) {
-      this.handleIndexSelect();
+      if (this.state.summaryBranch !== null) {
+        // The summary stays in the right panel
+        this.setState({
+          selectedCommit: null
+        });
+      } else {
+        this.handleIndexSelect();
+      }
     }
   }
 
@@ -296,11 +336,26 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
       this.graphViewer.current.updateGraph();
     }
     this.unselectRemovedCommit();
+    this.updateBranchSummary();
+  }
+
+  // The summary closes when its branch is removed, it is loaded again when the branch or its source moved
+  updateBranchSummary() {
+    const branch = this.state.summaryBranch;
+    if (branch === null) {
+      return;
+    }
+    if (!this.props.repo.references.has(branch)) {
+      this.handleBranchSummaryClose();
+    } else if (this.rightViewer.current instanceof BranchSummaryViewer) {
+      this.rightViewer.current.refresh();
+    }
   }
 
   updateIndexViewer() {
-    if (!this.state.selectedCommit && this.rightViewer.current) {
-      const indexViewer = this.rightViewer.current as IndexViewer;
+    // The summary of a branch may be in the right panel instead
+    if (!this.state.selectedCommit && this.state.summaryBranch === null && this.rightViewer.current instanceof IndexViewer) {
+      const indexViewer = this.rightViewer.current;
       indexViewer.forceUpdate();
       if (this.state.selectedPatch && this.state.patchType !== PatchType.Committed) {
         indexViewer.refreshSelectedPatch(this.state.patchType === PatchType.Unstaged);
@@ -331,11 +386,22 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
           onOpenInputDialog={this.props.onOpenInputDialog}
           onFocusChange={this.handleFocusChange}
           onOpenFocusDialog={this.openFocusDialog}
+          onShowBranchSummary={this.handleBranchSummaryShow}
           ref={this.graphViewer} />;
       }
     }
     let rightViewer;
-    if (this.state.selectedCommit) {
+    if (this.state.summaryBranch !== null) {
+      // A new branch gets a new viewer, which loads its summary
+      rightViewer = <BranchSummaryViewer repo={this.props.repo}
+        branch={this.state.summaryBranch}
+        selectedPatch={this.state.selectedPatch}
+        onCommitSelect={this.handleSummaryCommitSelect}
+        onPatchSelect={this.handlePatchSelect}
+        onClose={this.handleBranchSummaryClose}
+        key={this.state.summaryBranch}
+        ref={this.rightViewer as React.RefObject<BranchSummaryViewer | null>} />;
+    } else if (this.state.selectedCommit) {
       rightViewer = <CommitViewer repo={this.props.repo}
         commit={this.state.selectedCommit}
         selectedPatch={this.state.selectedPatch}

@@ -6,12 +6,12 @@ import { CancellablePromise, makeCancellable } from '../helpers/make-cancellable
 import { formatCommitDate, formatFullDate } from '../helpers/viewer-format';
 import { copyToClipboard } from '../helpers/native';
 
-function renderDate(date: Date) {
+export function renderDate(date: Date) {
   return <time dateTime={date.toISOString()} title={formatFullDate(date)}>{formatCommitDate(date)}</time>;
 }
 
 // The button may have been clicked on its icon or its label, the tooltip is found from the button itself
-function setTooltipText(button: HTMLElement, text: string) {
+export function setTooltipText(button: HTMLElement, text: string) {
   const tooltip = button.querySelector('.tooltip-text');
   if (tooltip) {
     tooltip.textContent = text;

@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { RepoWrapper, Reference } from '../helpers/repo-wrapper';
-import { createReferenceContextMenu, FocusChangeHandler } from '../helpers/reference-context-menu';
+import { BranchSummaryHandler, createReferenceContextMenu, FocusChangeHandler } from '../helpers/reference-context-menu';
 import { MAX_FOCUSED_REFERENCES, isFocused, toggleFocus } from '../helpers/branch-focus';
 import { InputDialogHandler } from './input-dialog';
 import { getReferenceIcon } from './reference-badge';
@@ -15,6 +15,7 @@ export interface ReferenceItemProps {
   hidden: boolean;
   onOpenInputDialog: InputDialogHandler;
   onFocusChange: FocusChangeHandler;
+  onShowBranchSummary: BranchSummaryHandler;
   onClick: () => void;
 }
 
@@ -39,7 +40,7 @@ export class ReferenceItem extends React.PureComponent<ReferenceItemProps, {}> {
   handleContextMenu(event: React.MouseEvent<HTMLButtonElement>) {
     event.preventDefault();
     const menu = createReferenceContextMenu(this.props.repo, this.props.reference, this.props.selected, this.props.onOpenInputDialog,
-      this.props.focus, this.props.onFocusChange);
+      this.props.focus, this.props.onFocusChange, this.props.onShowBranchSummary);
     menu.popup();
   }
 

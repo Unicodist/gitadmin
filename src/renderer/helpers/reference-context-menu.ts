@@ -4,6 +4,8 @@ import { buildMenu, copyToClipboard, MenuItem } from './native';
 import { MAX_FOCUSED_REFERENCES, addToFocus, isFocused, removeFromFocus } from './branch-focus';
 
 export type FocusChangeHandler = (focus: string[]) => void;
+// Opens the summary of a branch in the right panel, with the full name of the reference
+export type BranchSummaryHandler = (branch: string) => void;
 
 // Items that change the references whose history the graph shows
 function createFocusItems(reference: Reference, focus: readonly string[], onFocusChange: FocusChangeHandler): MenuItem[] {
@@ -38,7 +40,8 @@ function createBranchContextMenu(repo: RepoWrapper,
   currentBranch: boolean,
   onOpenInputDialog: InputDialogHandler,
   focus: readonly string[],
-  onFocusChange: FocusChangeHandler) {
+  onFocusChange: FocusChangeHandler,
+  onShowBranchSummary: BranchSummaryHandler) {
   function openRenameBranchDialog() {
     onOpenInputDialog('Rename branch', 'Name', 'Rename', (value) => repo.renameReference(reference, value), shortName);
   }
@@ -68,6 +71,13 @@ function createBranchContextMenu(repo: RepoWrapper,
       label: repo.head ? `Merge ${shortName} into ${removeReferencePrefix(repo.head.name())}` : `Merge ${shortName}`,
       click: () => repo.merge(repo.head!.name(), reference.name()),
       enabled: reference.isBranch() && !currentBranch && repo.head !== null
+    },
+    {
+      type: 'separator'
+    },
+    {
+      label: 'See branch summary',
+      click: () => onShowBranchSummary(reference.name())
     },
     {
       type: 'separator'
@@ -123,10 +133,11 @@ export function createReferenceContextMenu(repo: RepoWrapper,
   currentBranch: boolean,
   onOpenInputDialog: InputDialogHandler,
   focus: readonly string[],
-  onFocusChange: FocusChangeHandler) {
+  onFocusChange: FocusChangeHandler,
+  onShowBranchSummary: BranchSummaryHandler) {
   if (reference.isTag()) {
     return createTagContextMenu(repo, reference, onOpenInputDialog, focus, onFocusChange);
   } else {
-    return createBranchContextMenu(repo, reference, currentBranch, onOpenInputDialog, focus, onFocusChange);
+    return createBranchContextMenu(repo, reference, currentBranch, onOpenInputDialog, focus, onFocusChange, onShowBranchSummary);
   }
 }

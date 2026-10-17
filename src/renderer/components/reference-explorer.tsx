@@ -12,6 +12,7 @@ export interface ReferenceExplorerProps {
   focus: string[];
   onOpenInputDialog: InputDialogHandler;
   onFocusChange: (focus: string[]) => Promise<void>;
+  onShowBranchSummary: (branch: string) => void;
 }
 
 export interface ReferenceExplorerState {
@@ -61,6 +62,7 @@ export class ReferenceExplorer extends React.PureComponent<ReferenceExplorerProp
             focus={this.props.focus}
             onOpenInputDialog={this.props.onOpenInputDialog}
             onFocusChange={this.props.onFocusChange}
+            onShowBranchSummary={this.props.onShowBranchSummary}
             onClick={this.props.onCommitSelect} />
           <ReferenceList title="Remote branches"
             repo={this.props.repo}
@@ -69,6 +71,7 @@ export class ReferenceExplorer extends React.PureComponent<ReferenceExplorerProp
             focus={this.props.focus}
             onOpenInputDialog={this.props.onOpenInputDialog}
             onFocusChange={this.props.onFocusChange}
+            onShowBranchSummary={this.props.onShowBranchSummary}
             onClick={this.props.onCommitSelect} />
           <ReferenceList title="Tags"
             repo={this.props.repo}
@@ -77,6 +80,7 @@ export class ReferenceExplorer extends React.PureComponent<ReferenceExplorerProp
             focus={this.props.focus}
             onOpenInputDialog={this.props.onOpenInputDialog}
             onFocusChange={this.props.onFocusChange}
+            onShowBranchSummary={this.props.onShowBranchSummary}
             onClick={this.props.onCommitSelect} />
           <StashList repo={this.props.repo}
             stashes={[...this.props.repo.stashes.values()]}
