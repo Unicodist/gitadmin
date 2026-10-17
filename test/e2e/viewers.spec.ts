@@ -319,4 +319,27 @@ test.describe('conflict viewer', () => {
     await expect(submitRow.getByRole('button', { name: 'Commit and merge' })).toBeEnabled();
     expect(launched.pageErrors).toEqual([]);
   });
+
+  test('replaces the file with its current or its incoming version', async () => {
+    const indexViewer = page.locator('.index-viewer');
+    await indexViewer.locator('li', { hasText: 'engine.txt' }).click();
+    await expect(page.locator('.conflict-header')).toHaveCount(1);
+    const toolbar = page.locator('.patch-toolbar');
+    const content = page.locator('.patch-editor .view-lines');
+
+    await toolbar.getByRole('button', { name: 'Take incoming version' }).click();
+    await expect.poll(() => repo.read('engine.txt')).toBe(lines('difference', 'engine'));
+    await expect(page.locator('.conflict-header')).toHaveCount(0);
+    await expect(content).toHaveText(/^difference\s*engine\s*$/);
+    await toolbar.getByRole('button', { name: 'Keep current version' }).click();
+    await expect.poll(() => repo.read('engine.txt')).toBe(lines('babbage', 'engine', 'mill'));
+    await expect(content).toHaveText(/^babbage\s*engine\s*mill\s*$/);
+
+    // The file stays conflicted until it is marked as resolved
+    const commitAndMerge = indexViewer.locator('.submit-row').getByRole('button', { name: 'Commit and merge' });
+    await expect(commitAndMerge).toBeDisabled();
+    await toolbar.getByRole('button', { name: 'Mark as resolved' }).click();
+    await expect(commitAndMerge).toBeEnabled();
+    expect(launched.pageErrors).toEqual([]);
+  });
 });

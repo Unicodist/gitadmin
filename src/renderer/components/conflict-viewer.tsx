@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as Path from 'path';
 import * as React from 'react';
-import { RepoWrapper, Patch } from '../helpers/repo-wrapper';
+import { RepoWrapper, Patch, ConflictVersion } from '../helpers/repo-wrapper';
 import { openInEditor } from '../helpers/open-in-editor';
 import { arePatchesSimilar } from '../helpers/patch-comparison';
 import { ConflictHunk, findConflictHunks } from '../helpers/conflict-parser';
@@ -59,6 +59,8 @@ export class ConflictViewer extends React.PureComponent<ConflictViewerProps, {}>
     this.decorations = [];
     this.setUpEditor = this.setUpEditor.bind(this);
     this.handleOpenInEditor = this.handleOpenInEditor.bind(this);
+    this.handleKeepCurrent = this.handleKeepCurrent.bind(this);
+    this.handleTakeIncoming = this.handleTakeIncoming.bind(this);
     this.handleResolve = this.handleResolve.bind(this);
   }
 
@@ -96,6 +98,14 @@ export class ConflictViewer extends React.PureComponent<ConflictViewerProps, {}>
 
   handleOpenInEditor() {
     openInEditor(this.props.patch.newFile.path);
+  }
+
+  handleKeepCurrent() {
+    this.props.repo.checkoutConflictVersion(this.props.patch, ConflictVersion.Current);
+  }
+
+  handleTakeIncoming() {
+    this.props.repo.checkoutConflictVersion(this.props.patch, ConflictVersion.Incoming);
   }
 
   handleResolve() {
@@ -341,14 +351,14 @@ export class ConflictViewer extends React.PureComponent<ConflictViewerProps, {}>
             <button type='button'
               className='small-button'
               title='Keep the current version of the file'
-              onClick={() => console.log('current')}>
+              onClick={this.handleKeepCurrent}>
               <span className='conflict-swatch current' aria-hidden='true' />
               <span className='button-label'>Keep current<span className='label-end'> version</span></span>
             </button>
             <button type='button'
               className='small-button'
               title='Take the incoming version of the file'
-              onClick={() => console.log('incoming')}>
+              onClick={this.handleTakeIncoming}>
               <span className='conflict-swatch incoming' aria-hidden='true' />
               <span className='button-label'>Take incoming<span className='label-end'> version</span></span>
             </button>

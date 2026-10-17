@@ -58,6 +58,12 @@ export enum ResetType {
   Hard = 'hard'
 }
 
+// Version of a conflicted file, git calls the current one "ours" and the incoming one "theirs"
+export enum ConflictVersion {
+  Current = 'ours',
+  Incoming = 'theirs'
+}
+
 export interface RepoLocation {
   workdir: string;
   gitDir: string;
@@ -591,6 +597,12 @@ export class RepoWrapper {
         await this.git(['checkout', '--quiet', '--', patch.newFile.path]);
       }
     });
+  }
+
+  // Replaces a conflicted file of the working directory with one of its versions, the file stays conflicted until it is staged
+  async checkoutConflictVersion(patch: Patch, version: ConflictVersion) {
+    const failureMessage = version === ConflictVersion.Current ? 'Unable to keep the current version' : 'Unable to take the incoming version';
+    await this.tryRun(failureMessage, () => this.git(['checkout', '--quiet', `--${version}`, '--', patch.newFile.path]));
   }
 
   getIdentityEnvironment(committerOnly = false) {
