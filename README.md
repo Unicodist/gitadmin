@@ -8,6 +8,7 @@ The main features of Gitadmin are:
 * Quick filters to show only the current branch or the local branches, or to hide remote branches, tags and stashes, remembered per repository
 * Highlight the commits that match words of their message, their author or SHA, or a date range (`after:2024-01 before:2024-03-15`)
 * Focus on a few branches to see only their history and how they relate: merge base, fork points, commits ahead and behind, merges between them
+* Works with SSH and HTTPS remotes with or without an SSH agent: asks for the passphrase of a key, the password of a server or an access token when needed, asks before trusting a new host, and can use a chosen key per host
 * Syntax highlighting
 * Themeable (light and dark modes available)
 * Automatic refresh

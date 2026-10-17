@@ -79,11 +79,12 @@ export function makeModal<P extends WrappedComponentProps, S>(Component: Compone
     }
 
     // The focus can still leave the dialog: to a notification, which is above the dialog, with Tab after the notification,
-    // or to a component under the dialog that takes it. It comes back to the dialog, unless it is on a notification.
+    // or to a component under the dialog that takes it. It comes back to the dialog, unless it is on a notification or
+    // in another dialog, like a prompt for credentials over the dialog.
     handleDocumentFocusIn(event: FocusEvent) {
       const dialog = this.dialog.current;
       const target = event.target;
-      if (!dialog || !(target instanceof Element) || dialog.contains(target) || target.closest('.notification-queue')) {
+      if (!dialog || !(target instanceof Element) || dialog.contains(target) || target.closest('.notification-queue, .modal-backdrop')) {
         return;
       }
       if (this.lastFocus instanceof HTMLElement && dialog.contains(this.lastFocus)) {

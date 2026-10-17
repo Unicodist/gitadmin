@@ -7,6 +7,7 @@ import { CancellablePromise, makeCancellable } from '../helpers/make-cancellable
 import { getThemeOptions } from '../helpers/dialogs';
 import { IconName } from '../helpers/icons';
 import { Icon } from './icon';
+import { AuthenticationPreferences } from './authentication-preferences';
 
 enum Section {
   Profile,
@@ -224,12 +225,7 @@ class Preferences extends React.PureComponent<PreferencesProps, PreferencesState
               </div>
             </form>
           </>)}
-          {this.renderPanel(Section.Authentication, <>
-            <div className='preferences-note'>
-              <Icon name='info' />
-              <p>The authentication uses your local SSH agent.</p>
-            </div>
-          </>)}
+          {this.renderPanel(Section.Authentication, <AuthenticationPreferences />)}
           {this.renderPanel(Section.Appearance, <>
             <form onSubmit={this.handleSubmit}>
               <div className='field'>
