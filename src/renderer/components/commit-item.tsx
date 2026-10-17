@@ -6,7 +6,7 @@ import { RepoWrapper, Stash, Commit, Reference } from '../helpers/repo-wrapper';
 import { createStashContextMenu } from '../helpers/stash-context-menu';
 import { createCommitContextMenu } from '../helpers/commit-context-menu';
 import { ContextMenu } from '../helpers/native';
-import { FocusChangeHandler } from '../helpers/reference-context-menu';
+import { BranchSummaryHandler, FocusChangeHandler } from '../helpers/reference-context-menu';
 import { RelationKind, RelationLabel } from '../helpers/branch-focus';
 import { IconName } from '../helpers/icons';
 
@@ -32,6 +32,7 @@ export interface CommitItemProps {
   onCreateBranch: (commit: Commit) => void;
   onOpenInputDialog: InputDialogHandler;
   onFocusChange: FocusChangeHandler;
+  onShowBranchSummary: BranchSummaryHandler;
 }
 
 const RELATION_ICONS: Record<RelationKind, IconName> = {
@@ -120,6 +121,7 @@ export class CommitItem extends React.PureComponent<CommitItemProps, {}> {
         focus={this.props.focus}
         onOpenInputDialog={this.props.onOpenInputDialog}
         onFocusChange={this.props.onFocusChange}
+        onShowBranchSummary={this.props.onShowBranchSummary}
         key={name} />
     ));
     const classNames = ['commit-item'];

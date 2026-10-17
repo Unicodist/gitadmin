@@ -451,12 +451,27 @@ describe('focused history', () => {
     await repo.git('checkout', '--quiet', '--detach');
     const { wrapper } = await load();
     assert.equal(wrapper.head, null);
-    const menu = createReferenceContextMenu(wrapper, wrapper.references.get(FEATURE)!, false, () => undefined, [MAIN], () => undefined);
+    const summaries: string[] = [];
+    const menu = createReferenceContextMenu(wrapper, wrapper.references.get(FEATURE)!, false, () => undefined, [MAIN], () => undefined,
+      (branch) => summaries.push(branch));
     const labels = menu.template.map((item) => item.label).filter((label) => label !== undefined);
     assert.ok(labels.includes('Merge feature'));
     assert.ok(labels.includes('Focus on feature'));
     assert.ok(labels.includes('Add feature to the focus'));
     assert.equal(menu.template.find((item) => item.label === 'Merge feature')!.enabled, false);
+    // The summary opens with the full name of the branch
+    menu.template.find((item) => item.label === 'See branch summary')!.click!();
+    assert.deepEqual(summaries, [FEATURE]);
+  });
+
+  it('offers the summary of the branches but not of the tags', async () => {
+    await createBranches();
+    await repo.git('tag', 'v1.0', 'main');
+    const { wrapper } = await load();
+    const labels = (name: string) => createReferenceContextMenu(wrapper, wrapper.references.get(name)!, false, () => undefined, [],
+      () => undefined, () => undefined).template.map((item) => item.label);
+    assert.ok(labels(MAIN).includes('See branch summary'));
+    assert.ok(!labels('refs/tags/v1.0').includes('See branch summary'));
   });
 
   it('loads the new commits of the focused references only', async () => {

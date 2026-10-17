@@ -21,6 +21,7 @@ export interface CommitListProps {
   onCreateBranch: (commit: Commit) => void;
   onOpenInputDialog: InputDialogHandler;
   onFocusChange: (focus: string[]) => void;
+  onShowBranchSummary: (branch: string) => void;
   onScroll: (height: number, start: number, end: number) => void;
   onResize: (offset: number, start: number, end: number) => void;
   onStateUpdate: (start: number, end: number) => void;
@@ -188,6 +189,7 @@ export class CommitList extends React.PureComponent<CommitListProps, CommitListS
           onCreateBranch={this.props.onCreateBranch}
           onOpenInputDialog={this.props.onOpenInputDialog}
           onFocusChange={this.props.onFocusChange}
+          onShowBranchSummary={this.props.onShowBranchSummary}
           color={getCommitColor(repo, commitSha)}
           shared={isSharedCommit(repo, commitSha)}
           relations={relations.length > 0 ? relations : NO_RELATIONS}

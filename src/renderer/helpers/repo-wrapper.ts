@@ -6,9 +6,12 @@ import { Field, Settings } from '../../shared/settings';
 import { NotificationType } from '../components/notification-item';
 import { git, gitBuffer } from './git/runner';
 import { Commit, DiffFile, DiffLine, Hunk, Patch, PatchStatus, Reference, Stash } from './git/model';
-import { COMMIT_FORMAT, DiffEntry, REFERENCE_FORMAT, parseCommits, parseDiffSummary, parseHunks, parseReferences } from './git/parsers';
+import {
+  COMMIT_FORMAT, DiffEntry, REFERENCE_FORMAT, parseCommits, parseDiffSummary, parseHunks, parseLineCounts, parseReferences
+} from './git/parsers';
 import { ApplyDirection, buildPartialPatch } from './git/partial-patch';
 import { BranchComparison, BranchRelations, FocusLayout, ForkPoint, computeFocusLayout, pruneFocus, renameInFocus } from './branch-focus';
+import { BranchSummary, FileChange, MergeCheck, countAuthors, getSourceCandidates, getTimeSpan } from './branch-summary';
 
 export { Commit, DiffFile, DiffLine, Hunk, Patch, PatchStatus, Reference, Stash } from './git/model';
 
@@ -817,6 +820,123 @@ export class RepoWrapper {
       mergeBase,
       forkPoints: forkPoints.filter((forkPoint): forkPoint is ForkPoint => forkPoint !== null),
       comparisons
+    };
+  }
+
+  // Branch summary
+
+  // Commit where the branch was taken out of the source, null if they share no history. git merge-base --fork-point
+  // uses the reflog of the source, so that a branch taken out of commits the source dropped since then still forks
+  // from them. When the branch merged the source in since then, its first parents lead back to where it was taken out.
+  async getForkPoint(source: string, branch: string) {
+    const forkPoint = (await this.git(['merge-base', '--fork-point', source, branch], { okExitCodes: [1] })).trim();
+    const base = forkPoint || await this.getMergeBase([source, branch]);
+    if (base === null) {
+      return { forkPoint: null, base: null };
+    }
+    const output = await this.git(['rev-list', '--first-parent', '--reverse', branch, `^${base}`, `^${source}`, '--']);
+    const first = output.split('\n').find((sha) => sha.length > 0);
+    const firstCommit = first ? await this.readCommit(first) : null;
+    // A branch that the source contains, or whose first parents never reach the source, forks from the base
+    return { forkPoint: firstCommit && firstCommit.parentIds.length > 0 ? firstCommit.parentIds[0] : base, base };
+  }
+
+  // Main branch that the branch was most likely taken out of: the one it has the fewest commits since, null if
+  // it shares no history with any of them
+  async detectSource(branch: string) {
+    const candidates = getSourceCandidates(this.references.keys(), branch);
+    const counts = await mapConcurrently(candidates, async (candidate) => {
+      const { base } = await this.getForkPoint(candidate, branch);
+      return base === null ? null : await this.countCommits(branch, [base, candidate]);
+    });
+    let best: string | null = null;
+    let bestCount = Infinity;
+    // The candidates are in the order of preference, the first one wins ties
+    candidates.forEach((candidate, i) => {
+      const count = counts[i];
+      if (count !== null && count < bestCount) {
+        best = candidate;
+        bestCount = count;
+      }
+    });
+    return best;
+  }
+
+  async countCommits(tip: string, excluded: string[]) {
+    const output = await this.git(['rev-list', '--count', tip, ...excluded.map((sha) => `^${sha}`), '--']);
+    return parseInt(output.trim(), 10);
+  }
+
+  // Files that conflict when the branch is merged into the source, computed without touching the working directory
+  async checkMerge(source: string, branch: string): Promise<MergeCheck> {
+    const output = await this.git(['merge-tree', '--write-tree', '-z', '--name-only', '--no-messages', source, branch], { okExitCodes: [1] });
+    // The tree comes first, then the conflicted files
+    const conflicts = [...new Set(output.split('\0').slice(1).filter((path) => path.length > 0))];
+    return { clean: conflicts.length === 0, conflicts };
+  }
+
+  // Net change from one commit to another
+  async getDiffPatches(from: string, to: string) {
+    const summary = await this.git(['diff-tree', '-r', ...SUMMARY_OPTIONS, from, to]);
+    const patches = parseDiffSummary(summary).map((entry) => this.createPatch(entry, entry.newId, (entry) =>
+      this.git(['diff-tree', '-p', ...DIFF_OPTIONS, '-M', '-C', '-U3', from, to, '--', ...new Set([entry.oldPath, entry.newPath])])));
+    // Line counts, in the same order as the patches
+    const counts = parseLineCounts(summary);
+    const changes = patches.map((patch): FileChange => {
+      const count = counts.get(patch.newFile.path);
+      return {
+        path: patch.newFile.path,
+        added: count ? count.added : 0,
+        removed: count ? count.removed : 0,
+        binary: patch.isBinary || (count !== undefined && count.binary)
+      };
+    });
+    return { patches, changes };
+  }
+
+  // What happened on the branch since it was taken out of the source, both are full reference names
+  async getBranchSummary(branch: string, source: string | null): Promise<BranchSummary> {
+    const empty: BranchSummary = {
+      branch, source, forkPoint: null, base: null, ahead: 0, behind: 0, commits: [], authors: [],
+      firstDate: null, lastDate: null, patches: [], changes: [], added: 0, removed: 0, mergeCheck: null
+    };
+    if (source === null) {
+      return empty;
+    }
+    const { forkPoint, base } = await this.getForkPoint(source, branch);
+    const [ahead, behind] = await this.compareCommits(branch, source);
+    if (forkPoint === null || base === null) {
+      return { ...empty, ahead, behind };
+    }
+    const [forkCommit, log, diff, mergeCheck] = await Promise.all([
+      this.readCommit(forkPoint),
+      this.git(['log', '-z', `--format=${COMMIT_FORMAT}`, branch, `^${source}`, `^${base}`, '--']),
+      this.getDiffPatches(base, branch),
+      this.checkMerge(source, branch)
+    ]);
+    const commits = parseCommits(log);
+    const listed = new Set(commits.map((commit) => commit.sha()));
+    const [firstDate, lastDate] = getTimeSpan(commits);
+    return {
+      branch,
+      source,
+      forkPoint: forkCommit,
+      base,
+      ahead,
+      behind,
+      // A merge brings the source when one of its other parents is not a commit of the branch
+      commits: commits.map((commit) => ({
+        commit,
+        syncedWithSource: commit.parentIds.slice(1).some((parent) => !listed.has(parent))
+      })),
+      authors: countAuthors(commits),
+      firstDate,
+      lastDate,
+      patches: diff.patches,
+      changes: diff.changes,
+      added: diff.changes.reduce((total, change) => total + change.added, 0),
+      removed: diff.changes.reduce((total, change) => total + change.removed, 0),
+      mergeCheck
     };
   }
 

@@ -6,12 +6,12 @@ import { CancellablePromise, makeCancellable } from '../helpers/make-cancellable
 import { formatCommitDate, formatFullDate } from '../helpers/viewer-format';
 import { copyToClipboard } from '../helpers/native';
 
-function renderDate(date: Date) {
+export function renderDate(date: Date) {
   return <time dateTime={date.toISOString()} title={formatFullDate(date)}>{formatCommitDate(date)}</time>;
 }
 
 // The button may have been clicked on its icon or its label, the tooltip is found from the button itself
-function setTooltipText(button: HTMLElement, text: string) {
+export function setTooltipText(button: HTMLElement, text: string) {
   const tooltip = button.querySelector('.tooltip-text');
   if (tooltip) {
     tooltip.textContent = text;
@@ -24,6 +24,8 @@ export interface CommitViewerProps {
   selectedPatch: Patch | null;
   onCommitSelect: (commit: Commit) => void;
   onPatchSelect: (patch: Patch, type: PatchType) => void;
+  // Set when the commit was opened from the summary of a branch, the button goes back to it
+  onBackToSummary?: () => void;
 }
 
 export interface CommitViewerState {
@@ -148,7 +150,17 @@ export class CommitViewer extends React.PureComponent<CommitViewerProps, CommitV
       <div className='commit-viewer' ref={this.div}>
         <div className='viewer-header'>
           <span className='viewer-title'>Commit</span>
-          {CommitViewer.createShaButton(commit.sha())}
+          <span className='viewer-actions'>
+            {this.props.onBackToSummary ?
+              <button type='button'
+                className='ghost-button small-button'
+                aria-label='Back to the branch summary'
+                onClick={this.props.onBackToSummary}>
+                <Icon name='git-branch' size={14} />
+                <span>Summary</span>
+              </button> : null}
+            {CommitViewer.createShaButton(commit.sha())}
+          </span>
         </div>
         <div className='viewer-body'>
           <div className='commit-message'>
