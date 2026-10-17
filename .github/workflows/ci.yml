@@ -42,7 +42,7 @@ jobs:
           path: test-results/
 
   package:
-    name: Package (${{ matrix.os }})
+    name: Build installers (${{ matrix.os }})
     needs: check
     strategy:
       fail-fast: false
@@ -56,4 +56,12 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npm run package
+      # The runners have dpkg and fakeroot for the deb package but not rpmbuild for the rpm package
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y rpm
+      - run: npm run make
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installers-${{ matrix.os }}
+          path: out/make/
+          retention-days: 7
