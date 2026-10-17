@@ -1,7 +1,8 @@
 import { describe, it } from 'node:test';
 import * as assert from 'node:assert/strict';
 import {
-  AUTO_DISMISS_DELAY, DismissTimer, getAutoDismissDelay, getTransitionDuration, NotificationType, splitNotificationMessage
+  AUTO_DISMISS_DELAY, DismissTimer, enqueueNotification, getAutoDismissDelay, getTransitionDuration, MAX_NOTIFICATIONS, NotificationType,
+  splitNotificationMessage
 } from '../src/renderer/helpers/notifications';
 import { NotificationType as ExportedNotificationType } from '../src/renderer/components/notification-item';
 
@@ -17,6 +18,22 @@ describe('getAutoDismissDelay', () => {
 
   it('is the type that the components export', () => {
     assert.equal(ExportedNotificationType, NotificationType);
+  });
+});
+
+describe('enqueueNotification', () => {
+  it('adds a notification after the others', () => {
+    assert.deepEqual(enqueueNotification([], 'fetched'), ['fetched']);
+    assert.deepEqual(enqueueNotification(['fetched'], 'pushed'), ['fetched', 'pushed']);
+  });
+
+  it('removes the oldest notifications to keep a few on screen', () => {
+    assert.ok(MAX_NOTIFICATIONS >= 2 && MAX_NOTIFICATIONS <= 5);
+    const full = Array.from({ length: MAX_NOTIFICATIONS }, (_, i) => i);
+    const queue = enqueueNotification(full, MAX_NOTIFICATIONS);
+    assert.deepEqual(queue, [...full.slice(1), MAX_NOTIFICATIONS]);
+    // The queue that was given is left as it is, it is the state of a component
+    assert.equal(full.length, MAX_NOTIFICATIONS);
   });
 });
 

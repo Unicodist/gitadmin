@@ -55,6 +55,8 @@ export class NotificationItem extends React.PureComponent<NotificationItemProps,
     if (this.removeTimeout !== null) {
       clearTimeout(this.removeTimeout);
     }
+    // The queue removes the oldest toasts without dismissing them, to make room for new ones
+    this.moveFocusAway();
   }
 
   handleMouseEnter() {

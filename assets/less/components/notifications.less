@@ -7,20 +7,31 @@
 
 // Toasts at the top right of the window, below the toolbar, above the dialogs
 ul.notification-queue {
+  // Room around the toasts for their shadows, a list that scrolls clips what goes past its edges
+  @queue-padding: var(--space-3);
+
   position: fixed;
-  top: calc(@toolbar-height + var(--space-3));
-  right: var(--space-3);
+  top: @toolbar-height;
+  right: 0;
   z-index: 30;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  width: @notification-width;
-  max-width: calc(100vw - 2 * var(--space-3));
+  width: calc(@notification-width + 2 * @queue-padding);
+  max-width: 100vw;
+  // The toasts that do not fit in the window scroll, so that they can all be reached
+  max-height: calc(100vh - @toolbar-height);
   margin: 0;
-  padding: 0;
+  padding: @queue-padding;
+  overflow-x: hidden;
+  overflow-y: auto;
   list-style: none;
-  // The clicks go through the empty parts of the queue
+  // The clicks go through the empty parts of the queue, unless it scrolls: its scrollbar must work
   pointer-events: none;
+
+  &.overflowing {
+    pointer-events: auto;
+  }
 }
 
 li.notification {

@@ -12,6 +12,14 @@ export function getAutoDismissDelay(type: NotificationType): number | null {
   return type === NotificationType.Error ? null : AUTO_DISMISS_DELAY;
 }
 
+// Number of toasts on screen at most, the errors would pile up otherwise
+export const MAX_NOTIFICATIONS = 3;
+
+// Adds a notification after the others, the oldest ones make room for it
+export function enqueueNotification<T>(notifications: T[], notification: T): T[] {
+  return [...notifications, notification].slice(-MAX_NOTIFICATIONS);
+}
+
 export interface NotificationText {
   title: string;
   // Empty when the message has no details
