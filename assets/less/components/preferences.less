@@ -137,3 +137,102 @@ div.preferences {
     }
   }
 }
+
+// Authentication
+div.preferences {
+  // A title inside a section, closer to its content than to the content above
+  section h4 {
+    margin: var(--space-2) 0 calc(-1 * var(--space-2));
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+  }
+
+  p.preferences-text {
+    color: var(--text-secondary);
+  }
+
+  ul.ssh-key-list,
+  ul.ssh-host-key-list {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    list-style: none;
+
+    li {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      min-height: 32px;
+      padding: 0 var(--space-3);
+
+      & + li {
+        border-top: 1px solid var(--border-subtle);
+      }
+    }
+
+    svg.icon {
+      flex: none;
+      color: var(--text-secondary);
+    }
+  }
+
+  span.ssh-key-name,
+  span.ssh-host {
+    font-weight: var(--font-weight-medium);
+  }
+
+  span.ssh-key-detail {
+    padding: 0 6px;
+    border-radius: var(--radius-xs);
+    background-color: var(--surface-2);
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+  }
+
+  span.ssh-key-comment,
+  span.ssh-host-key {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text-muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  span.ssh-key-comment {
+    text-align: right;
+  }
+
+  // The host, its key and Add on one row
+  form.ssh-host-key-form {
+    flex-direction: row;
+    align-items: flex-end;
+    gap: var(--space-2);
+
+    .field {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .select {
+      align-self: stretch;
+      width: auto;
+    }
+  }
+
+  div.preferences-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+  }
+}
+
+// Looks disabled but keeps the focus
+div.preferences div.preferences-row button[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

@@ -5,6 +5,7 @@ import { CommitGraph } from './commit-graph';
 import { Field, Settings } from '../../shared/settings';
 import { NotificationType } from '../components/notification-item';
 import { git, gitBuffer } from './git/runner';
+import { CancelledError, getSshCommand, getSshHostKeys, runNetworkCommand } from './git/network';
 import { Commit, DiffFile, DiffLine, Hunk, Patch, PatchStatus, Reference, Stash } from './git/model';
 import {
   COMMIT_FORMAT, DiffEntry, REFERENCE_FORMAT, parseCommits, parseDiffSummary, parseHunks, parseLineCounts, parseReferences
@@ -521,7 +522,7 @@ export class RepoWrapper {
     path = Path.resolve(path);
     const parent = Path.dirname(path);
     fs.mkdirSync(parent, { recursive: true });
-    await git(['clone', '--', url, path], parent);
+    await runNetworkCommand(url, (env) => git(['clone', '--', url, path], parent, { env }));
     return await RepoWrapper.open(path);
   }
 
@@ -558,7 +559,10 @@ export class RepoWrapper {
       }
       return result;
     } catch (e) {
-      this.onNotification(`${failureMessage}: ${errorMessage(e)}`, NotificationType.Error);
+      // The user cancelled a prompt for credentials
+      if (!(e instanceof CancelledError)) {
+        this.onNotification(`${failureMessage}: ${errorMessage(e)}`, NotificationType.Error);
+      }
       return null;
     }
   }
@@ -1055,8 +1059,33 @@ export class RepoWrapper {
     }
   }
 
+  // Names and fetch URLs of the remotes
+  async getRemotes() {
+    const output = await this.git(['remote', '-v']);
+    const remotes: { name: string, url: string }[] = [];
+    for (const line of output.split('\n')) {
+      const match = /^(\S+)\t(.*) \(fetch\)$/.exec(line);
+      if (match) {
+        remotes.push({ name: match[1], url: match[2] });
+      }
+    }
+    return remotes;
+  }
+
   async fetchAll() {
-    await this.tryRun('Unable to fetch all', () => this.git(['fetch', '--all', '--quiet']));
+    await this.tryRun('Unable to fetch all', async () => {
+      const remotes = await this.getRemotes();
+      const hostKeys = getSshHostKeys();
+      if (new Set(remotes.map((remote) => getSshCommand(remote.url, hostKeys))).size <= 1) {
+        await runNetworkCommand(remotes.length > 0 ? remotes[0].url : null,
+          (env) => this.git(['fetch', '--all', '--quiet'], { env }));
+      } else {
+        // The remotes are on hosts that use different keys
+        for (const remote of remotes) {
+          await runNetworkCommand(remote.url, (env) => this.git(['fetch', '--quiet', remote.name], { env }));
+        }
+      }
+    });
   }
 
   async pull(name: string) {
@@ -1069,7 +1098,8 @@ export class RepoWrapper {
       if (!this.headName) {
         throw new Error('HEAD is not on a branch');
       }
-      await this.git(['push', '--quiet', 'origin', this.headName]);
+      const url = (await this.git(['remote', 'get-url', '--push', 'origin'])).trim();
+      await runNetworkCommand(url, (env) => this.git(['push', '--quiet', 'origin', this.headName!], { env }));
     }, 'Pushed successfully');
   }
 
