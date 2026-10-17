@@ -69,8 +69,8 @@ The release workflow runs the checks, builds the installers and publishes them i
 
 | OS | Architectures | Packages |
 |---|---|---|
-| Linux | x64, arm64, armv7l | `.deb`, `.rpm`, `.zip` |
-| Windows | x64, ia32, arm64 | `Setup.exe`, `.zip` |
+| Linux | x64, arm64 | `.deb`, `.rpm`, `.zip` |
+| Windows | x64, arm64 | `Setup.exe`, `.zip` |
 | macOS | arm64, x64 | `.dmg`, `.zip` |
 
 The packages are not signed yet, so macOS and Windows warn about them the first time they are opened.
