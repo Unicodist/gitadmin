@@ -4,6 +4,8 @@ on:
   push:
     branches: [master]
   pull_request:
+  # Run by the release workflow before it builds the installers
+  workflow_call:
 
 jobs:
   check:

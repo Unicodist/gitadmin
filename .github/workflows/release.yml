@@ -1,0 +1,143 @@
+name: Release
+
+# Pushing a branch named release/<version>, for example release/1.2.0 or
+# release/1.2.0-beta.1, builds the installers of every platform, tags the commit
+# v<version> and publishes them in a GitHub release.
+on:
+  push:
+    branches: ['release/*.*.*']
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    name: Read the version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - id: version
+        name: Read the version from the branch name
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          version="${BRANCH#release/}"
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Branch $BRANCH is not release/<major>.<minor>.<patch>[-<pre-release>]"
+            exit 1
+          fi
+          prerelease=false
+          if [[ "$version" == *-* ]]; then
+            prerelease=true
+          fi
+          {
+            echo "version=$version"
+            echo "tag=v$version"
+            echo "prerelease=$prerelease"
+          } >> "$GITHUB_OUTPUT"
+      - name: Check that the version was not released from another commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          # A re-run on the same commit is allowed and replaces the files of the release
+          if sha=$(gh api "repos/$GH_REPO/commits/$TAG" --jq .sha 2>/dev/null) && [[ "$sha" != "$GITHUB_SHA" ]]; then
+            echo "::error::$TAG was already released from $sha. Push a branch for a new version instead."
+            exit 1
+          fi
+
+  check:
+    name: Check
+    needs: prepare
+    uses: ./.github/workflows/ci.yml
+
+  make:
+    name: Make (${{ matrix.platform }} ${{ matrix.arch }})
+    needs: [prepare, check]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Architectures other than the one of the runner are cross-built.
+          # npm_arch selects the git that dugite downloads.
+          - { os: ubuntu-latest, platform: linux, arch: x64, npm_arch: x64 }
+          - { os: ubuntu-latest, platform: linux, arch: arm64, npm_arch: arm64 }
+          - { os: ubuntu-latest, platform: linux, arch: armv7l, npm_arch: arm }
+          - { os: windows-latest, platform: win32, arch: x64, npm_arch: x64 }
+          - { os: windows-latest, platform: win32, arch: ia32, npm_arch: ia32 }
+          - { os: windows-latest, platform: win32, arch: arm64, npm_arch: arm64 }
+          - { os: macos-latest, platform: darwin, arch: arm64, npm_arch: arm64 }
+          - { os: macos-latest, platform: darwin, arch: x64, npm_arch: x64 }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install rpmbuild
+        if: matrix.platform == 'linux'
+        run: sudo apt-get update && sudo apt-get install -y rpm
+      - run: npm ci
+        env:
+          npm_config_arch: ${{ matrix.npm_arch }}
+      - name: Set the version
+        run: npm version "$VERSION" --no-git-tag-version --allow-same-version
+      - run: npm run make -- --arch=${{ matrix.arch }}
+      - name: Collect the packages
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          mkdir release
+          find out/make -type f \( -name '*.zip' -o -name '*.deb' -o -name '*.rpm' -o -name '*.dmg' \) -exec cp {} release/ \;
+          # The Squirrel installer has the same name for every architecture
+          find out/make -type f -name '*Setup.exe' -exec cp {} "release/Gitadmin-$VERSION-win32-$ARCH-Setup.exe" \;
+          ls -l release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages-${{ matrix.platform }}-${{ matrix.arch }}
+          path: release/
+          if-no-files-found: error
+
+  release:
+    name: Publish ${{ needs.prepare.outputs.tag }}
+    needs: [prepare, make]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: packages-*
+          path: release
+          merge-multiple: true
+      - name: Tag the commit and publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+        run: |
+          ls -l release
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" release/* --clobber
+          else
+            gh release create "$TAG" release/* \
+              --target "$GITHUB_SHA" \
+              --title "Gitadmin $TAG" \
+              --generate-notes \
+              --prerelease="$PRERELEASE"
+          fi
