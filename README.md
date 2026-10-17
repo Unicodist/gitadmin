@@ -50,7 +50,7 @@ npm run package    # package the app for the current platform
 npm run make       # build the installers for the current platform
 ```
 
-`npm run make` builds a zip on every platform, plus a Squirrel installer on Windows and a deb and an rpm package on Linux. On Linux it needs `dpkg` and `fakeroot` for the deb package and `rpmbuild` for the rpm package, for example `sudo apt install dpkg fakeroot rpm` on Debian and Ubuntu, or `sudo dnf install dpkg fakeroot rpm-build` on Fedora. To build only some of them, pass the makers to Electron Forge: `npm run build && npx electron-forge make --targets @electron-forge/maker-zip,@electron-forge/maker-deb`.
+`npm run make` builds a zip on every platform, plus a Squirrel installer on Windows, a dmg on macOS and a deb and an rpm package on Linux. On Linux it needs `dpkg` and `fakeroot` for the deb package and `rpmbuild` for the rpm package, for example `sudo apt install dpkg fakeroot rpm` on Debian and Ubuntu, or `sudo dnf install dpkg fakeroot rpm-build` on Fedora. To build only some of them, pass the makers to Electron Forge: `npm run build && npx electron-forge make --targets @electron-forge/maker-zip,@electron-forge/maker-deb`.
 
 The stylesheet is written in LESS in `assets/less` and compiled to `assets/css` by `npm run build` (or `npm run build:css` alone). The colors come from the themes in `assets/themes`.
 
