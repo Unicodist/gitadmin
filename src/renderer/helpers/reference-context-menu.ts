@@ -64,7 +64,8 @@ function createBranchContextMenu(repo: RepoWrapper,
       type: 'separator'
     },
     {
-      label: `Merge ${shortName} into ${removeReferencePrefix(repo.head!.name())}`,
+      // The head is null when it is detached
+      label: repo.head ? `Merge ${shortName} into ${removeReferencePrefix(repo.head.name())}` : `Merge ${shortName}`,
       click: () => repo.merge(repo.head!.name(), reference.name()),
       enabled: reference.isBranch() && !currentBranch && repo.head !== null
     },

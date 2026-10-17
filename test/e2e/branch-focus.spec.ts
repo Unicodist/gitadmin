@@ -110,6 +110,34 @@ test('remembers the focus of the repository', async () => {
   await expect(focusCheckbox('main')).toBeChecked();
 });
 
+test('keeps the focus chosen right before the repository is closed', async () => {
+  const names = ['b0', 'b1', 'b2', 'b3', 'b4', 'b5', 'b6', 'b7'];
+  for (const name of names) {
+    await repo.git('branch', name, 'feature');
+  }
+  await expect(explorerItem('b7')).toBeVisible();
+  // Each change loads the history and the relations again, the repository is closed before they are all loaded
+  for (const name of names) {
+    await focusCheckbox(name).check();
+  }
+  await page.locator('.repo-toolbar').getByRole('button', { name: 'Close', exact: true }).click();
+
+  await openRecentRepo(page, repo);
+  await expect(focusBar()).toContainText('Showing 8 branches');
+  for (const name of names) {
+    await expect(focusCheckbox(name)).toBeChecked();
+  }
+});
+
+test('changes the focus from the context menu with a detached head', async () => {
+  await repo.git('checkout', '--quiet', '--detach');
+  await expect(explorerItem('main')).not.toHaveAttribute('aria-current');
+  await pickContextMenuItem(launched.app, 'Focus on feature');
+  await explorerItem('feature').click({ button: 'right' });
+  await expect(focusBar()).toContainText('Showing 1 branch');
+  await expect(commitSummaries()).toHaveText(['Punch the cards', 'Add the cards', 'Add the engine']);
+});
+
 test('changes the focus from the context menu and with Ctrl+click', async () => {
   // The badges of the commit list and the rows of the explorer have the same menu
   await pickContextMenuItem(launched.app, 'Focus on main');

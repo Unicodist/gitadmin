@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { RepoWrapper, Commit } from '../helpers/repo-wrapper';
-import { describeComparison, describeFocus, joinNames, shortenReferenceName } from '../helpers/branch-focus';
+import { describeComparison, describeFocus, describeMissingMergeBase, joinNames, shortenReferenceName } from '../helpers/branch-focus';
 import { getBranchColor } from '../helpers/commit-graph';
 import { Icon } from './icon';
 
@@ -72,9 +72,10 @@ export class FocusBar extends React.PureComponent<FocusBarProps, FocusBarState> 
   }
 
   renderMergeBase() {
-    const mergeBase = this.props.repo.relations!.mergeBase;
+    const relations = this.props.repo.relations!;
+    const mergeBase = relations.mergeBase;
     if (mergeBase === null) {
-      return <span className='focus-merge-base no-common-history'>No common history</span>;
+      return <span className='focus-merge-base no-common-history'>{describeMissingMergeBase(relations)}</span>;
     }
     const commit = this.props.repo.shaToCommit.get(mergeBase);
     const sha = mergeBase.substring(0, SHORT_SHA_LENGTH);

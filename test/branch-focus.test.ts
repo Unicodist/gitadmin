@@ -5,8 +5,10 @@ import * as os from 'os';
 import * as Path from 'path';
 import {
   MAX_FOCUSED_REFERENCES, RelationKind, SHARED, addToFocus, computeFocusLayout, describeComparison, describeFocus,
-  getRelationLabels, joinNames, loadFocus, pruneFocus, removeFromFocus, renameInFocus, saveFocus, toggleFocus
+  describeMissingMergeBase, getRelationLabels, joinNames, loadFocus, pruneFocus, removeFromFocus, renameInFocus, saveFocus,
+  toggleFocus
 } from '../src/renderer/helpers/branch-focus';
+import { createReferenceContextMenu } from '../src/renderer/helpers/reference-context-menu';
 import { BRANCH_COLORS, getCommitColor, getBranchColor, isSharedCommit, SHARED_COLOR } from '../src/renderer/helpers/commit-graph';
 import { Commit } from '../src/renderer/helpers/git/model';
 import { RepoWrapper } from '../src/renderer/helpers/repo-wrapper';
@@ -50,7 +52,8 @@ describe('focus list', () => {
     assert.equal(describeFocus([MAIN, FEATURE]), 'Showing 2 branches');
     assert.equal(joinNames(['a']), 'a');
     assert.equal(joinNames(['a', 'b', 'c']), 'a, b and c');
-    const compare = (ahead: number, behind: number) => describeComparison({ left: FEATURE, right: 'refs/remotes/origin/main', ahead, behind });
+    const compare = (ahead: number, behind: number) =>
+      describeComparison({ left: FEATURE, right: 'refs/remotes/origin/main', related: true, ahead, behind });
     assert.equal(compare(0, 0), 'feature and origin/main are at the same commit');
     assert.equal(compare(1, 0), 'feature is 1 commit ahead of origin/main');
     assert.equal(compare(0, 4), 'feature is 4 commits behind origin/main');
@@ -328,9 +331,9 @@ describe('focused history', () => {
       { reference: 'refs/heads/topic', sha: await repo.sha('feature~1') }
     ]);
     assert.deepEqual(relations.comparisons, [
-      { left: MAIN, right: FEATURE, ahead: 1, behind: 2 },
-      { left: MAIN, right: 'refs/heads/topic', ahead: 1, behind: 2 },
-      { left: FEATURE, right: 'refs/heads/topic', ahead: 1, behind: 1 }
+      { left: MAIN, right: FEATURE, related: true, ahead: 1, behind: 2 },
+      { left: MAIN, right: 'refs/heads/topic', related: true, ahead: 1, behind: 2 },
+      { left: FEATURE, right: 'refs/heads/topic', related: true, ahead: 1, behind: 1 }
     ]);
     // D is where feature and topic split
     const labels = getRelationLabels(await repo.sha('feature~1'), relations, wrapper.focusLayout);
@@ -345,7 +348,7 @@ describe('focused history', () => {
     const relations = wrapper.relations!;
     assert.equal(relations.mergeBase, await repo.sha('old'));
     assert.deepEqual(relations.forkPoints, [{ reference: MAIN, sha: await repo.sha('old') }]);
-    assert.deepEqual(relations.comparisons, [{ left: MAIN, right: 'refs/heads/old', ahead: 1, behind: 0 }]);
+    assert.deepEqual(relations.comparisons, [{ left: MAIN, right: 'refs/heads/old', related: true, ahead: 1, behind: 0 }]);
   });
 
   it('compares references without common history', async () => {
@@ -358,11 +361,34 @@ describe('focused history', () => {
     const relations = wrapper.relations!;
     assert.equal(relations.mergeBase, null);
     assert.deepEqual(relations.forkPoints, []);
-    assert.deepEqual(relations.comparisons, [{ left: MAIN, right: 'refs/heads/lonely', ahead: 2, behind: 1 }]);
+    assert.deepEqual(relations.comparisons, [{ left: MAIN, right: 'refs/heads/lonely', related: false, ahead: 2, behind: 1 }]);
+    assert.equal(describeComparison(relations.comparisons[0]), 'main and lonely share no history');
+    assert.equal(describeMissingMergeBase(relations), 'No common history');
     // Nothing is shared, so nothing is dimmed
     assert.equal(wrapper.commits.some((commit) => isSharedCommit(wrapper, commit.sha())), false);
     assert.deepEqual(usedLanes(wrapper), range(wrapper.graph.width));
     assert.deepEqual(errors(), []);
+  });
+
+  it('tells which references share history when one of them shares none', async () => {
+    await createBranches();
+    await repo.git('checkout', '--quiet', '--orphan', 'pages');
+    await repo.commit('P');
+    await repo.git('checkout', '--quiet', 'main');
+    const { wrapper } = await load([MAIN, FEATURE, 'refs/heads/pages']);
+    const relations = wrapper.relations!;
+    assert.equal(relations.mergeBase, null);
+    assert.equal(describeMissingMergeBase(relations), 'No base shared by all');
+    // main and feature still fork from B
+    assert.deepEqual(relations.forkPoints, [
+      { reference: MAIN, sha: await repo.sha('main~1') },
+      { reference: FEATURE, sha: await repo.sha('main~1') }
+    ]);
+    assert.deepEqual(relations.comparisons.map((comparison) => describeComparison(comparison)), [
+      'main is 1 commit ahead of and 2 behind feature',
+      'main and pages share no history',
+      'feature and pages share no history'
+    ]);
   });
 
   it('has no relations for a single reference', async () => {
@@ -418,6 +444,19 @@ describe('focused history', () => {
     await wrapper.requestUpdateCommits();
     assert.deepEqual(wrapper.focus, []);
     assert.deepEqual(summaries(wrapper).filter((summary) => !summary.startsWith('WIP')), ['A', 'B', 'C', 'X']);
+  });
+
+  it('builds the menu of a branch with a detached head', async () => {
+    await createBranches();
+    await repo.git('checkout', '--quiet', '--detach');
+    const { wrapper } = await load();
+    assert.equal(wrapper.head, null);
+    const menu = createReferenceContextMenu(wrapper, wrapper.references.get(FEATURE)!, false, () => undefined, [MAIN], () => undefined);
+    const labels = menu.template.map((item) => item.label).filter((label) => label !== undefined);
+    assert.ok(labels.includes('Merge feature'));
+    assert.ok(labels.includes('Focus on feature'));
+    assert.ok(labels.includes('Add feature to the focus'));
+    assert.equal(menu.template.find((item) => item.label === 'Merge feature')!.enabled, false);
   });
 
   it('loads the new commits of the focused references only', async () => {

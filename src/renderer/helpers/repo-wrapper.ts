@@ -90,6 +90,20 @@ function errorMessage(e: unknown) {
   return e instanceof Error ? e.message : String(e);
 }
 
+// Calls the function on each item with at most a few calls running at once, the results keep the order of the items
+async function mapConcurrently<T, R>(items: T[], fn: (item: T, index: number) => Promise<R>, limit = 4) {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  const run = async () => {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i], i);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, run));
+  return results;
+}
+
 const DIFF_OPTIONS = ['--no-color', '--no-ext-diff', '--no-textconv'];
 const SUMMARY_OPTIONS = ['--raw', '--numstat', '-z', '--no-abbrev', '-M', '-C'];
 
@@ -775,24 +789,35 @@ export class RepoWrapper {
       return null;
     }
     const tips = references.map((name) => this.references.get(name)!.commitId);
-    const mergeBase = await this.getMergeBase(tips, true);
-    // Where each reference leaves the history of the others: git merges the others before looking for the base
-    const forkPoints: ForkPoint[] = [];
-    for (const [i, reference] of references.entries()) {
-      const base = await this.getMergeBase([tips[i], ...tips.filter((_tip, j) => j !== i)]);
-      // A reference that the others contain does not fork
-      if (base !== null && base !== tips[i]) {
-        forkPoints.push({ reference, sha: base });
-      }
-    }
-    const comparisons: BranchComparison[] = [];
+    const pairs: [number, number][] = [];
     for (let i = 0; i < references.length; ++i) {
       for (let j = i + 1; j < references.length; ++j) {
-        const [ahead, behind] = await this.compareCommits(tips[i], tips[j]);
-        comparisons.push({ left: references[i], right: references[j], ahead, behind });
+        pairs.push([i, j]);
       }
     }
-    return { references, mergeBase, forkPoints, comparisons };
+    // The git commands are independent, a few of them run at the same time
+    const [mergeBase, forkPoints, comparisons] = await Promise.all([
+      this.getMergeBase(tips, true),
+      // Where each reference leaves the history of the others: git merges the others before looking for the base
+      mapConcurrently(references, async (reference, i) => {
+        const base = await this.getMergeBase([tips[i], ...tips.filter((_tip, j) => j !== i)]);
+        // A reference that the others contain does not fork
+        return base !== null && base !== tips[i] ? { reference, sha: base } : null;
+      }),
+      mapConcurrently(pairs, async ([i, j]): Promise<BranchComparison> => {
+        const [related, [ahead, behind]] = await Promise.all([
+          this.getMergeBase([tips[i], tips[j]]).then((base) => base !== null),
+          this.compareCommits(tips[i], tips[j])
+        ]);
+        return { left: references[i], right: references[j], related, ahead, behind };
+      })
+    ]);
+    return {
+      references,
+      mergeBase,
+      forkPoints: forkPoints.filter((forkPoint): forkPoint is ForkPoint => forkPoint !== null),
+      comparisons
+    };
   }
 
   async createBranch(name: string, commit: Commit) {

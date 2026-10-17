@@ -144,6 +144,9 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
     this.setState({
       focus: focus
     });
+    // Saved at once so that closing the repository before the history is loaded keeps the choice,
+    // the references that do not exist anymore are left out when it is opened again
+    saveFocus(repo.workdir, focus);
     try {
       await repo.setFocus(focus);
     } finally {

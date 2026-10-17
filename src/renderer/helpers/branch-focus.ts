@@ -73,6 +73,8 @@ export function saveFocus(workdir: string, focus: readonly string[]) {
 export interface BranchComparison {
   left: string;
   right: string;
+  // False if the references share no history, ahead and behind are then their whole histories
+  related: boolean;
   // Commits of left that right does not have
   ahead: number;
   // Commits of right that left does not have
@@ -264,7 +266,9 @@ export function describeComparison(comparison: BranchComparison) {
   const left = shortenReferenceName(comparison.left);
   const right = shortenReferenceName(comparison.right);
   const commits = (n: number) => `${n} ${n === 1 ? 'commit' : 'commits'}`;
-  if (comparison.ahead === 0 && comparison.behind === 0) {
+  if (!comparison.related) {
+    return `${left} and ${right} share no history`;
+  } else if (comparison.ahead === 0 && comparison.behind === 0) {
     return `${left} and ${right} are at the same commit`;
   } else if (comparison.behind === 0) {
     return `${left} is ${commits(comparison.ahead)} ahead of ${right}`;
@@ -272,4 +276,9 @@ export function describeComparison(comparison: BranchComparison) {
     return `${left} is ${commits(comparison.behind)} behind ${right}`;
   }
   return `${left} is ${commits(comparison.ahead)} ahead of and ${comparison.behind} behind ${right}`;
+}
+
+// Tells why there is no merge base: some of the references may still share history
+export function describeMissingMergeBase(relations: BranchRelations) {
+  return relations.comparisons.some((comparison) => comparison.related) ? 'No base shared by all' : 'No common history';
 }
