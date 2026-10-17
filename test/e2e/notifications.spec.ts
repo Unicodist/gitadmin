@@ -74,7 +74,7 @@ test('dismisses an information by itself, unless it is hovered or focused', asyn
   await page.clock.pauseAt(Date.now() + 1000);
 
   const pull = page.locator('.repo-toolbar').getByRole('button', { name: 'Pull' });
-  const toast = page.locator('.notification-queue li', { hasText: 'Merge successfully' });
+  const toast = page.locator('.notification-queue li', { hasText: 'Merged successfully' });
   await pull.click();
   await expect(toast).toHaveCount(1);
   await expect(toast).toHaveClass(/\binformation\b/);

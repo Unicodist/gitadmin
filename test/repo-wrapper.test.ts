@@ -473,11 +473,12 @@ describe('references', () => {
   });
 
   it('creates, checks out, renames and removes branches', async () => {
-    const { wrapper, errors } = await load();
+    const { wrapper, notifications, errors } = await load();
     const reference = await wrapper.createBranch('feature/x', wrapper.headCommit!);
     assert.equal(reference!.name(), 'refs/heads/feature/x');
     await wrapper.checkoutReference(reference!);
     assert.equal((await repo.git('symbolic-ref', 'HEAD')).trim(), 'refs/heads/feature/x');
+    assert.deepEqual(notifications.map((notification) => notification.message), ['Checked out feature/x']);
     await repo.git('checkout', '--quiet', 'main');
     await wrapper.renameReference(reference!, 'feature/y');
     assert.equal((await repo.git('branch', '--format=%(refname:short)')).trim(), 'feature/y\nmain');
@@ -530,7 +531,7 @@ describe('merges', () => {
     const { wrapper, notifications, errors } = await load();
     await wrapper.merge('refs/heads/main', 'refs/heads/feature');
     assert.deepEqual(errors(), []);
-    assert.equal(notifications[0].message, 'Merge successfully');
+    assert.equal(notifications[0].message, 'Merged successfully');
     assert.equal((await repo.git('log', '-1', '--format=%s|%p')).split('|')[0], "Merge branch 'feature'");
     assert.equal(repo.read('file.txt'), lines('a', 'feature', 'c'));
   });

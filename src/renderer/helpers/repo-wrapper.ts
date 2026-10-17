@@ -425,7 +425,7 @@ export class RepoWrapper {
     const target = reference.isBranch() ? [reference.shorthand()] : ['--detach', reference.name()];
     await this.tryRun(`Unable to checkout to ${reference.shorthand()}`,
       () => this.git(['checkout', '--quiet', ...target, '--']),
-      `Checkout successfully to ${reference.shorthand()}`);
+      `Checked out ${reference.shorthand()}`);
   }
 
   async reset(target: Commit, resetType: ResetType) {
@@ -702,7 +702,7 @@ export class RepoWrapper {
       }
       // The full reference name avoids ambiguities, but git would use it in the message
       await this.git(['merge', '--no-edit', '-m', getMergeMessage(from), from], { env: this.getIdentityEnvironment() });
-    }, 'Merge successfully');
+    }, 'Merged successfully');
   }
 
   async getMergeHeads() {

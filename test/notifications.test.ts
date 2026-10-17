@@ -29,7 +29,7 @@ describe('splitNotificationMessage', () => {
   });
 
   it('keeps a message without details as it is', () => {
-    assert.deepEqual(splitNotificationMessage('Merge successfully'), { title: 'Merge successfully', details: '' });
+    assert.deepEqual(splitNotificationMessage('Merged successfully'), { title: 'Merged successfully', details: '' });
     assert.deepEqual(splitNotificationMessage('Unable to push: '), { title: 'Unable to push', details: '' });
     // The colons of the paths and of the URLs are not followed by a space
     assert.deepEqual(splitNotificationMessage('Cloned https://example.com/repo.git in C:\\repos'), {
