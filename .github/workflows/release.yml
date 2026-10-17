@@ -59,7 +59,7 @@ jobs:
     needs: prepare
     uses: ./.github/workflows/ci.yml
     with:
-      installers: false
+      skip_installers: true
 
   make:
     name: Make (${{ matrix.platform }} ${{ matrix.arch }})
@@ -92,7 +92,10 @@ jobs:
       - name: Install rpmbuild
         if: matrix.platform == 'linux'
         run: sudo apt-get update && sudo apt-get install -y rpm
+      # Installed for the runner, since the dmg maker loads native modules at build time
       - run: npm ci
+      - name: Download the git of the target architecture
+        run: node node_modules/dugite/script/download-git.js
         env:
           npm_config_arch: ${{ matrix.npm_arch }}
       - name: Set the version
