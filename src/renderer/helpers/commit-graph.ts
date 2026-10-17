@@ -1,4 +1,5 @@
-import { RepoWrapper } from './repo-wrapper';
+import type { RepoWrapper } from './repo-wrapper';
+import { SHARED } from './branch-focus';
 import IntervalTree from 'node-interval-tree';
 import FastPriorityQueue from 'fastpriorityqueue';
 
@@ -26,6 +27,25 @@ export const BRANCH_COLORS = [
 
 export function getBranchColor(j: number) {
   return BRANCH_COLORS[j % BRANCH_COLORS.length];
+}
+
+// Color of the commits that all the focused references share, they are dimmed
+export const SHARED_COLOR = 'var(--text-muted)';
+
+// Color of a commit in the graph and in the commit list: the color of its focused reference when
+// several references are focused, otherwise the color of its lane
+export function getCommitColor(repo: RepoWrapper, sha: string) {
+  const owner = repo.focusLayout ? repo.focusLayout.owners.get(sha) : undefined;
+  if (owner !== undefined) {
+    return owner === SHARED ? SHARED_COLOR : getBranchColor(owner);
+  }
+  const position = repo.graph.positions.get(sha);
+  return getBranchColor(position ? position[1] : 0);
+}
+
+// True if all the focused references have the commit
+export function isSharedCommit(repo: RepoWrapper, sha: string) {
+  return repo.focusLayout !== null && repo.focusLayout.owners.get(sha) === SHARED;
 }
 
 export enum NodeType {
@@ -74,13 +94,14 @@ export class CommitGraph {
     }
 
     this.positions.clear();
-    const headSha = repo.headCommit ? repo.headCommit.sha() : null;
+    // The focus can leave the head out of the graph, the first lane is then free for the commits
+    const headSha = repo.isHeadInGraph() ? repo.headCommit!.sha() : null;
     let i = 1;
-    const branches: (string | null)[] = ['index'];
+    const branches: (string | null)[] = [headSha ? 'index' : null];
     const activeNodes = new Map<string, Set<number>>();
     const activeNodesQueue = new FastPriorityQueue<[number, string]>((lhs, rhs) => lhs[0] < rhs[0]);
-    activeNodes.set('index', new Set<number>());
     if (headSha) {
+      activeNodes.set('index', new Set<number>());
       activeNodesQueue.add([repo.shaToIndex.get(headSha)!, 'index']);
     }
     for (const commit of repo.commits) {
@@ -129,7 +150,8 @@ export class CommitGraph {
           j = insertCommit(commitSha, jChild, forbiddenIndices);
         } else {
           // TODO: Find a better value for j
-          j = insertCommit(commitSha, 0, new Set<number>());
+          // Starting before the first lane takes it when the index does not
+          j = insertCommit(commitSha, headSha ? 0 : -1, new Set<number>());
         }
       }
       // Remove useless active nodes

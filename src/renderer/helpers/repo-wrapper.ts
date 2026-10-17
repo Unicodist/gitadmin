@@ -8,6 +8,7 @@ import { git, gitBuffer } from './git/runner';
 import { Commit, DiffFile, DiffLine, Hunk, Patch, PatchStatus, Reference, Stash } from './git/model';
 import { COMMIT_FORMAT, DiffEntry, REFERENCE_FORMAT, parseCommits, parseDiffSummary, parseHunks, parseReferences } from './git/parsers';
 import { ApplyDirection, buildPartialPatch } from './git/partial-patch';
+import { BranchComparison, BranchRelations, FocusLayout, ForkPoint, computeFocusLayout, pruneFocus, renameInFocus } from './branch-focus';
 
 export { Commit, DiffFile, DiffLine, Hunk, Patch, PatchStatus, Reference, Stash } from './git/model';
 
@@ -109,12 +110,19 @@ export class RepoWrapper {
   graph: CommitGraph;
   unstagedPatches: Patch[];
   stagedPatches: Patch[];
+  // Full names of the references whose history is loaded, every reference and stash when it is empty
+  focus: string[];
+  // Relations between the focused references, null when fewer than two are focused
+  relations: BranchRelations | null;
+  // Colors and merges of the focused history, null when fewer than two references are focused
+  focusLayout: FocusLayout | null;
   onNotification: (message: string, type: NotificationType) => void;
   // Internals
   updateCommitsPromise: Promise<void>; // Used to queue commit updates
   ig: Ignore;
   headName: string | null;
   headSha: string | null;
+  relationsKey: string; // Focused references and their commits when the relations were computed
   getIdentity: () => Identity | null;
 
   constructor(location: RepoLocation, onNotification: (message: string, type: NotificationType) => void, options: RepoWrapperOptions = {}) {
@@ -134,11 +142,15 @@ export class RepoWrapper {
     this.graph = new CommitGraph();
     this.unstagedPatches = [];
     this.stagedPatches = [];
+    this.focus = [];
+    this.relations = null;
+    this.focusLayout = null;
     this.onNotification = onNotification;
     this.updateCommitsPromise = Promise.resolve();
     this.ig = ignore();
     this.headName = null;
     this.headSha = null;
+    this.relationsKey = '';
     this.getIdentity = options.getIdentity || getIdentityFromSettings;
   }
 
@@ -160,15 +172,67 @@ export class RepoWrapper {
     await this.updateCommitsPromise;
   }
 
-  async updateCommits() {
-    const referencesToUpdate = await this.updateReferences();
-    const stashesToUpdate = await this.updateStashes();
+  // Loads the new commits, or all of them again when the focus changes
+  async updateCommits(focus?: string[]) {
+    let referencesToUpdate = await this.updateReferences();
+    let stashesToUpdate = await this.updateStashes();
     await this.readHead();
-    const newCommits = await this.getNewCommits(referencesToUpdate, stashesToUpdate);
+    // A focused reference may have been removed
+    const newFocus = pruneFocus(focus || this.focus, this.references);
+    const reload = newFocus !== this.focus;
+    if (reload) {
+      referencesToUpdate = [...this.references.values()];
+      stashesToUpdate = [...this.stashes.values()];
+    }
+    const focused = newFocus.length > 0;
+    const tips = focused ? referencesToUpdate.filter((reference) => newFocus.includes(reference.name())) : referencesToUpdate;
+    // The commits are only replaced once they are all read, the lists keep showing the previous ones in the meantime
+    const newCommits = await this.readNewCommits(tips, focused ? [] : stashesToUpdate, !focused, reload);
+    if (reload) {
+      this.focus = newFocus;
+      this.clearCommits();
+    }
+    this.addCommits(newCommits);
     this.updateShaToReferences();
     this.getParents(newCommits);
     this.removeUnreachableCommits();
     this.sortCommits();
+    if (reload) {
+      // Every commit has a position again before the lists are drawn
+      this.updateGraph();
+    }
+    // Computing the relations runs git for each pair of references, only when they moved
+    const relationsKey = this.focus.map((name) => `${name} ${this.references.get(name)!.commitId}`).join('\n');
+    if (relationsKey !== this.relationsKey) {
+      this.relations = await this.getBranchRelations(this.focus);
+      this.relationsKey = relationsKey;
+    }
+  }
+
+  isFocused() {
+    return this.focus.length > 0;
+  }
+
+  // Shows only the history of these references, or of everything if the list is empty
+  async setFocus(focus: string[]) {
+    // Queued like the other updates, a new list is always different from the current one
+    this.updateCommitsPromise = this.updateCommitsPromise.then(() => this.updateCommits([...new Set(focus)]));
+    await this.updateCommitsPromise;
+    await this.updateHead();
+    this.updateGraph();
+  }
+
+  clearCommits() {
+    this.commits = [];
+    this.shaToCommit.clear();
+    this.shaToIndex.clear();
+    this.parents.clear();
+    this.children.clear();
+  }
+
+  // True if the history of the reference is not loaded because of the focus
+  isHidden(reference: Reference) {
+    return !this.shaToCommit.has(reference.commitId);
   }
 
   async updateReferences() {
@@ -210,38 +274,43 @@ export class RepoWrapper {
     }
   }
 
-  async getNewCommits(references: Reference[], stashes: Stash[]) {
+  // Reads the commits that are not loaded yet, or all of them for a reload
+  async readNewCommits(references: Reference[], stashes: Stash[], withHead: boolean, reload: boolean) {
+    const isLoaded = (sha: string) => !reload && this.shaToCommit.has(sha);
     // Start from the updated references, the parents of the new stashes, and a detached head
     const tips = new Set<string>(references.map((reference) => reference.commitId));
     for (const stash of stashes) {
       tips.add(stash.commit.parentIds[0]);
     }
-    if (this.headSha && !this.shaToCommit.has(this.headSha)) {
+    if (withHead && this.headSha && !isLoaded(this.headSha)) {
       tips.add(this.headSha);
     }
     const newCommits: Commit[] = [];
     if (tips.size > 0) {
       // Prevent from retrieving commits already loaded: hiding the commits
       // without loaded children hides all their ancestors
-      const hidden = this.commits
+      const hidden = reload ? [] : this.commits
         .filter((commit) => this.children.get(commit.sha())!.length === 0)
         .map((commit) => `^${commit.sha()}`);
       const output = await this.git(['log', '-z', `--format=${COMMIT_FORMAT}`, '--ignore-missing', '--stdin'], {
         stdin: [...tips, ...hidden].join('\n') + '\n'
       });
-      newCommits.push(...parseCommits(output).filter((commit) => !this.shaToCommit.has(commit.sha())));
+      newCommits.push(...parseCommits(output).filter((commit) => !isLoaded(commit.sha())));
     }
     // Stash commits are only linked to the commit they were created on
     for (const stash of stashes) {
-      if (!this.shaToCommit.has(stash.commit.sha())) {
+      if (!isLoaded(stash.commit.sha())) {
         newCommits.push(stash.commit);
       }
     }
-    for (const commit of newCommits) {
+    return newCommits;
+  }
+
+  addCommits(commits: Commit[]) {
+    for (const commit of commits) {
       this.commits.push(commit);
       this.shaToCommit.set(commit.sha(), commit);
     }
-    return newCommits;
   }
 
   getParents(commits: Commit[]) {
@@ -264,11 +333,10 @@ export class RepoWrapper {
   removeUnreachableCommits() {
     // Find unreachable commits by doing a DFS
     const alreadyAdded = new Set<string>();
-    const frontier: string[] = [
-      ...Array.from(this.references.values(), (reference) => reference.commitId),
-      ...this.stashes.keys()
-    ];
-    if (this.headSha) {
+    const frontier: string[] = this.isFocused() ?
+      this.focus.map((name) => this.references.get(name)!.commitId) :
+      [...Array.from(this.references.values(), (reference) => reference.commitId), ...this.stashes.keys()];
+    if (this.headSha && !this.isFocused()) {
       frontier.push(this.headSha);
     }
     for (const sha of frontier) {
@@ -352,11 +420,28 @@ export class RepoWrapper {
   async updateHead() {
     await this.readHead();
     this.head = this.headName ? this.references.get(this.headName) || null : null;
-    this.headCommit = this.headSha ? this.shaToCommit.get(this.headSha) || null : null;
+    // The focus can leave the head out of the graph, the index still needs its commit
+    this.headCommit = this.headSha ? this.shaToCommit.get(this.headSha) || await this.readCommit(this.headSha) : null;
+  }
+
+  async readCommit(sha: string) {
+    const output = await this.git(['log', '-1', '-z', `--format=${COMMIT_FORMAT}`, sha, '--'], { okExitCodes: [128] });
+    return parseCommits(output)[0] || null;
+  }
+
+  // True if the head commit is in the graph, the index is then linked to it
+  isHeadInGraph() {
+    return this.headCommit !== null && this.shaToIndex.has(this.headCommit.sha());
   }
 
   updateGraph() {
     this.graph.computePositions(this);
+    this.focusLayout = computeFocusLayout(this.focus, {
+      commits: this.commits,
+      parents: this.parents,
+      children: this.children,
+      tips: new Map(this.focus.filter((name) => this.references.has(name)).map((name) => [name, this.references.get(name)!.commitId]))
+    });
   }
 
   async updateIndex() {
@@ -664,8 +749,50 @@ export class RepoWrapper {
     return Array.from(this.references.values(), (reference) => this.getReferenceCommit(reference));
   }
 
+  // Undefined if the history of the reference is hidden by the focus
   getReferenceCommit(reference: Reference) {
-    return this.shaToCommit.get(reference.commitId)!;
+    return this.shaToCommit.get(reference.commitId);
+  }
+
+  // Relations
+
+  // Best common ancestor of the commits, null if they share no history
+  async getMergeBase(shas: string[], octopus = false) {
+    const output = await this.git(['merge-base', ...(octopus ? ['--octopus'] : []), ...shas], { okExitCodes: [1] });
+    return output.trim() || null;
+  }
+
+  // Number of commits of left that right does not have, and of right that left does not have
+  async compareCommits(left: string, right: string): Promise<[number, number]> {
+    const output = await this.git(['rev-list', '--left-right', '--count', `${left}...${right}`, '--']);
+    const [ahead, behind] = output.trim().split(/\s+/).map((count) => parseInt(count, 10));
+    return [ahead, behind];
+  }
+
+  async getBranchRelations(names: string[]): Promise<BranchRelations | null> {
+    const references = names.filter((name) => this.references.has(name));
+    if (references.length < 2) {
+      return null;
+    }
+    const tips = references.map((name) => this.references.get(name)!.commitId);
+    const mergeBase = await this.getMergeBase(tips, true);
+    // Where each reference leaves the history of the others: git merges the others before looking for the base
+    const forkPoints: ForkPoint[] = [];
+    for (const [i, reference] of references.entries()) {
+      const base = await this.getMergeBase([tips[i], ...tips.filter((_tip, j) => j !== i)]);
+      // A reference that the others contain does not fork
+      if (base !== null && base !== tips[i]) {
+        forkPoints.push({ reference, sha: base });
+      }
+    }
+    const comparisons: BranchComparison[] = [];
+    for (let i = 0; i < references.length; ++i) {
+      for (let j = i + 1; j < references.length; ++j) {
+        const [ahead, behind] = await this.compareCommits(tips[i], tips[j]);
+        comparisons.push({ left: references[i], right: references[j], ahead, behind });
+      }
+    }
+    return { references, mergeBase, forkPoints, comparisons };
   }
 
   async createBranch(name: string, commit: Commit) {
@@ -702,6 +829,8 @@ export class RepoWrapper {
         await this.git(['update-ref', '--create-reflog', newName, reference.targetId, '']);
         await this.git(['update-ref', '-d', oldName, reference.targetId]);
       }
+      // The renamed reference stays in the focus
+      this.focus = renameInFocus(this.focus, oldName, newName);
     });
   }
 
