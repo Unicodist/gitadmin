@@ -1,5 +1,5 @@
 import { ipcRenderer } from 'electron';
-import { SerializedMenuItem } from '../../shared/ipc';
+import { SerializedMenuItem, ThemeSource } from '../../shared/ipc';
 
 export interface MenuItem {
   label?: string;
@@ -44,10 +44,21 @@ export function buildMenu(template: MenuItem[]) {
   return new ContextMenu(template);
 }
 
+// Copies a text to the clipboard. The clipboard module of Electron is only available in the main process.
+export function copyToClipboard(text: string) {
+  return navigator.clipboard.writeText(text);
+}
+
 // Asks the user to pick a directory, returns null if the dialog is cancelled
 export async function showOpenDirectoryDialog() {
   const result: Electron.OpenDialogReturnValue = await ipcRenderer.invoke('show-open-dialog', {
     properties: ['openDirectory', 'createDirectory']
   });
   return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0];
+}
+
+// Sets the color scheme of the native parts of the window (menus, scrollbars, title bar),
+// and the color shown before the page is painted
+export async function setThemeSource(themeSource: ThemeSource, backgroundColor?: string) {
+  await ipcRenderer.invoke('set-theme-source', themeSource, backgroundColor);
 }

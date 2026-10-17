@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { RepoWrapper } from '../helpers/repo-wrapper';
 import { createStashContextMenu } from '../helpers/stash-context-menu';
+import { Icon } from './icon';
 
 export interface StashItemProps {
   repo: RepoWrapper;
@@ -15,7 +16,7 @@ export class StashItem extends React.PureComponent<StashItemProps, {}> {
     this.handleContextMenu = this.handleContextMenu.bind(this);
   }
 
-  handleContextMenu(event: React.MouseEvent<HTMLSpanElement>) {
+  handleContextMenu(event: React.MouseEvent<HTMLButtonElement>) {
     event.preventDefault();
     const menu = createStashContextMenu(this.props.repo, this.props.index);
     menu.popup();
@@ -23,8 +24,15 @@ export class StashItem extends React.PureComponent<StashItemProps, {}> {
 
   render() {
     return (
-      <li onClick={this.props.onClick} onContextMenu={this.handleContextMenu}>
-        {this.props.name}
+      <li>
+        <button type='button'
+          className='reference-item'
+          title={this.props.name}
+          onClick={this.props.onClick}
+          onContextMenu={this.handleContextMenu}>
+          <Icon name='archive' />
+          <span className='reference-name'>{this.props.name}</span>
+        </button>
       </li>
     );
   }

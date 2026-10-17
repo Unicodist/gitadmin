@@ -1,11 +1,21 @@
-import { clipboard } from 'electron';
 import * as React from 'react';
 import { PatchList } from './patch-list';
+import { Icon } from './icon';
 import { PatchType, RepoWrapper, shortenSha, Commit, Patch } from '../helpers/repo-wrapper';
 import { CancellablePromise, makeCancellable } from '../helpers/make-cancellable';
+import { formatCommitDate, formatFullDate } from '../helpers/viewer-format';
+import { copyToClipboard } from '../helpers/native';
 
-function formatDate(date: Date) {
-  return `${date.toLocaleDateString()} at ${date.toLocaleTimeString()}`;
+function renderDate(date: Date) {
+  return <time dateTime={date.toISOString()} title={formatFullDate(date)}>{formatCommitDate(date)}</time>;
+}
+
+// The button may have been clicked on its icon or its label, the tooltip is found from the button itself
+function setTooltipText(button: HTMLElement, text: string) {
+  const tooltip = button.querySelector('.tooltip-text');
+  if (tooltip) {
+    tooltip.textContent = text;
+  }
 }
 
 export interface CommitViewerProps {
@@ -18,6 +28,8 @@ export interface CommitViewerProps {
 
 export interface CommitViewerState {
   patches: Patch[];
+  // False until the files of the first commit are loaded, so that their number does not show 0 first
+  patchesLoaded: boolean;
 }
 
 export class CommitViewer extends React.PureComponent<CommitViewerProps, CommitViewerState> {
@@ -28,7 +40,8 @@ export class CommitViewer extends React.PureComponent<CommitViewerProps, CommitV
     super(props);
     this.div = React.createRef<HTMLDivElement>();
     this.state = {
-      patches: []
+      patches: [],
+      patchesLoaded: false
     };
     this.handlePatchSelect = this.handlePatchSelect.bind(this);
   }
@@ -66,72 +79,110 @@ export class CommitViewer extends React.PureComponent<CommitViewerProps, CommitV
     this.patchesPromise = makeCancellable(this.props.repo.getPatches(this.props.commit));
     try {
       this.setState({
-        patches: await this.patchesPromise.promise
+        patches: await this.patchesPromise.promise,
+        patchesLoaded: true
       });
     } catch (e) {
     }
   }
 
   static createShaButton(sha: string) {
-    function handleHover(event: React.MouseEvent<HTMLDivElement>) {
-      const element = event.target as HTMLDivElement;
-      const tooltipSpan = element.getElementsByClassName('tooltip-text')[0];
-      tooltipSpan.textContent = 'Copy';
+    function handleHover(event: React.SyntheticEvent<HTMLButtonElement>) {
+      setTooltipText(event.currentTarget, 'Copy');
     }
-    function handleClick(event: React.MouseEvent<HTMLDivElement>) {
-      clipboard.writeText(sha);
-      const element = event.target as HTMLDivElement;
-      const tooltipSpan = element.getElementsByClassName('tooltip-text')[0];
-      tooltipSpan.textContent = 'Copied';
+    function handleClick(event: React.MouseEvent<HTMLButtonElement>) {
+      const button = event.currentTarget;
+      copyToClipboard(sha).then(() => setTooltipText(button, 'Copied'));
     }
+    const shortSha = shortenSha(sha);
     return (
-      <span className='tooltip-bottom sha-button' onMouseEnter={handleHover} onClick={handleClick}>
-        {shortenSha(sha)}
-        <span className='tooltip-text'>Copy</span>
-      </span>
+      <button type='button'
+        className='ghost-button small-button sha-button tooltip-bottom'
+        aria-label={`Copy SHA ${shortSha}`}
+        onMouseEnter={handleHover}
+        onFocus={handleHover}
+        onClick={handleClick}>
+        <Icon name='copy' size={14} />
+        <span className='mono'>{shortSha}</span>
+        <span className='tooltip-text' aria-hidden='true'>Copy</span>
+      </button>
     );
   }
 
   createNavigationButton(commit: Commit) {
+    const shortSha = shortenSha(commit.sha());
     return (
-      <span className='tooltip-bottom sha-button navigate-button' key={commit.sha()} onClick={() => this.props.onCommitSelect(commit)}>
-        {shortenSha(commit.sha())}
-        <span className='tooltip-text'>Navigate</span>
-      </span>
+      <button type='button'
+        className='sha-chip tooltip-bottom'
+        aria-label={`Navigate to ${shortSha}`}
+        key={commit.sha()}
+        onClick={() => this.props.onCommitSelect(commit)}>
+        <span className='mono'>{shortSha}</span>
+        <span className='tooltip-text' aria-hidden='true'>Navigate</span>
+      </button>
     );
   }
 
   createNavigationButtons(shas: string[]) {
-    const buttons = [];
-    for (let i = 0; i < shas.length; ++i) {
-      buttons.push(this.createNavigationButton(this.props.repo.shaToCommit.get(shas[i])!));
-      if (i < shas.length - 1) {
-        buttons.push(', ');
-      }
-    }
-    return buttons;
+    return shas.map((sha) => this.createNavigationButton(this.props.repo.shaToCommit.get(sha)!));
+  }
+
+  renderParents() {
+    const parents = this.props.repo.parents.get(this.props.commit.sha()) || [];
+    return (
+      <li>
+        <Icon name={parents.length > 1 ? 'git-merge' : 'git-commit-horizontal'} size={14} />
+        <span className='commit-detail-label'>{parents.length > 1 ? 'Parents' : 'Parent'}</span>
+        {parents.length > 0 ?
+          <span className='commit-parents'>{this.createNavigationButtons(parents)}</span> :
+          <span className='commit-detail-label'>None</span>}
+      </li>
+    );
   }
 
   render() {
     const commit = this.props.commit;
     const author = commit.author();
-    const authoredDate = author.date;
     const body = commit.body();
     return (
       <div className='commit-viewer' ref={this.div}>
-        <h3>Commit: {CommitViewer.createShaButton(commit.sha())}</h3>
-        <div className='commit-message'>
-          <h2>{commit.summary()}</h2>
-          {body ? <pre>{body}</pre> : null}
+        <div className='viewer-header'>
+          <span className='viewer-title'>Commit</span>
+          {CommitViewer.createShaButton(commit.sha())}
         </div>
-        <p>By {author.name} &lt;<a href={`mailto:${author.email}`}>{author.email}</a>&gt;</p>
-        <p>Authored {formatDate(authoredDate)}</p>
-        <p>Last modified {formatDate(commit.date())}</p>
-        <p>Parents: {this.createNavigationButtons(this.props.repo.parents.get(commit.sha())!)}</p>
-        <PatchList patches={this.state.patches}
-          type={PatchType.Committed}
-          selectedPatch={this.props.selectedPatch}
-          onPatchSelect={this.handlePatchSelect} />
+        <div className='viewer-body'>
+          <div className='commit-message'>
+            <h2>{commit.summary()}</h2>
+            {body ? <pre>{body}</pre> : null}
+          </div>
+          <ul className='commit-details'>
+            <li>
+              <Icon name='user' size={14} />
+              <span className='commit-author'>
+                <span className='commit-author-name'>{author.name}</span>
+                <a href={`mailto:${author.email}`} title={author.email}>{author.email}</a>
+              </span>
+            </li>
+            <li>
+              <Icon name='calendar' size={14} />
+              <span className='commit-detail-label'>Authored</span>
+              {renderDate(author.date)}
+            </li>
+            <li>
+              <Icon name='clock' size={14} />
+              <span className='commit-detail-label'>Last modified</span>
+              {renderDate(commit.date())}
+            </li>
+            {this.renderParents()}
+          </ul>
+          <h3 className='section-label'>
+            {this.state.patchesLoaded ? `Files (${this.state.patches.length})` : 'Files'}
+          </h3>
+          <PatchList patches={this.state.patches}
+            type={PatchType.Committed}
+            selectedPatch={this.props.selectedPatch}
+            onPatchSelect={this.handlePatchSelect} />
+        </div>
       </div>
     );
   }

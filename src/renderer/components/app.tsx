@@ -1,7 +1,8 @@
 import * as React from 'react';
 import { RepoDashboard } from './repo-dashboard';
 import { RepoWrapper, RepoLocation, Commit } from '../helpers/repo-wrapper';
-import { showOpenDirectoryDialog } from '../helpers/native';
+import { setThemeSource, showOpenDirectoryDialog } from '../helpers/native';
+import { registerEditorTheme } from '../helpers/monaco-loader';
 import { NotificationQueue } from './notification-queue';
 import { WelcomeDashboard } from './welcome-dashboard';
 import { NotificationType } from './notification-item';
@@ -11,7 +12,8 @@ import { InitRepoDialog } from './init-repo-dialog';
 import { TextPatchViewerOptions } from './text-patch-viewer';
 import { PreferencesDialog } from './preferences-dialog';
 import { Field, Settings } from '../../shared/settings';
-import { ThemeManager } from '../../shared/theme-manager';
+import { DEFAULT_THEME, getBackgroundColor, getEditorThemeData, getEditorThemeName, SYSTEM_THEME, ThemeManager }
+  from '../../shared/theme-manager';
 import { InputDialog } from './input-dialog';
 
 export interface AppState {
@@ -24,20 +26,28 @@ export interface AppState {
 export class App extends React.PureComponent<{}, AppState> {
   notificationQueue: React.RefObject<NotificationQueue | null>;
   themeManager: ThemeManager;
+  themeSetting: string;
+  colorSchemeQuery: MediaQueryList;
+  // Color scheme of the OS when the theme was applied
+  prefersDark: boolean;
 
   constructor(props: {}) {
     super(props);
     this.notificationQueue = React.createRef();
     this.themeManager = new ThemeManager();
+    this.themeSetting = Settings.get(Field.Theme, DEFAULT_THEME);
+    this.colorSchemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
     this.state = {
       repos: [],
-      editorTheme: 'vs-light',
+      // The theme is applied before the first render so that the window never shows the page unstyled
+      editorTheme: this.applyTheme(),
       patchViewerOptions: {
         fontSize: 14
       },
       modalWindow: null
     };
     this.updateTheme = this.updateTheme.bind(this);
+    this.handleColorSchemeChange = this.handleColorSchemeChange.bind(this);
     this.updatePatchViewer = this.updatePatchViewer.bind(this);
     this.cloneRepo = this.cloneRepo.bind(this);
     this.initRepo = this.initRepo.bind(this);
@@ -52,16 +62,61 @@ export class App extends React.PureComponent<{}, AppState> {
   }
 
   componentDidMount() {
-    this.updateTheme();
+    this.colorSchemeQuery.addEventListener('change', this.handleColorSchemeChange);
+    // The color scheme of the OS may have changed between the first render and now
+    if (this.themeSetting === SYSTEM_THEME && this.colorSchemeQuery.matches !== this.prefersDark) {
+      this.setState({
+        editorTheme: this.applyTheme()
+      });
+    }
+    this.updateNativeTheme();
     this.updatePatchViewer();
   }
 
-  async updateTheme(name?: string) {
-    await this.themeManager.loadTheme(name);
-    this.themeManager.updateCssVariables();
+  componentWillUnmount() {
+    this.colorSchemeQuery.removeEventListener('change', this.handleColorSchemeChange);
+  }
+
+  // Applies the theme of the setting, returns the name of the theme of the editors
+  applyTheme() {
+    this.prefersDark = this.colorSchemeQuery.matches;
+    const theme = this.themeManager.loadTheme(this.themeSetting, this.prefersDark);
+    this.themeManager.applyTheme(theme);
+    const editorTheme = getEditorThemeName(theme);
+    registerEditorTheme(editorTheme, getEditorThemeData(theme));
+    return editorTheme;
+  }
+
+  // The menus, the scrollbars and the title bar follow the color scheme of the theme
+  updateNativeTheme() {
+    const theme = this.themeManager.theme!;
+    return setThemeSource(this.themeSetting === SYSTEM_THEME ? 'system' : theme.scheme, getBackgroundColor(theme));
+  }
+
+  handleColorSchemeChange() {
+    if (this.themeSetting === SYSTEM_THEME) {
+      this.setState({
+        editorTheme: this.applyTheme()
+      });
+      this.updateNativeTheme();
+    }
+  }
+
+  // Switches to the theme of a setting, the system setting follows the color scheme of the OS
+  async updateTheme(setting: string) {
+    this.themeSetting = setting;
+    if (setting === SYSTEM_THEME) {
+      // The page only gets the color scheme of the OS once the main process stops forcing one,
+      // if it changes after, the theme is updated again by handleColorSchemeChange
+      await setThemeSource('system');
+      if (this.themeSetting !== setting) {
+        return;
+      }
+    }
     this.setState({
-      editorTheme: this.themeManager.getEditorTheme()
+      editorTheme: this.applyTheme()
     });
+    await this.updateNativeTheme();
   }
 
   async updatePatchViewer(options?: TextPatchViewerOptions) {

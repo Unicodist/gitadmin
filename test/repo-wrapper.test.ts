@@ -3,7 +3,7 @@ import * as assert from 'node:assert/strict';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as Path from 'path';
-import { RepoState, RepoWrapper, ResetType, PatchStatus, getRepoName } from '../src/renderer/helpers/repo-wrapper';
+import { ConflictVersion, RepoState, RepoWrapper, ResetType, PatchStatus, getRepoName } from '../src/renderer/helpers/repo-wrapper';
 import { IDENTITY, TestRepo, lines } from './helpers';
 
 let repo: TestRepo;
@@ -473,11 +473,12 @@ describe('references', () => {
   });
 
   it('creates, checks out, renames and removes branches', async () => {
-    const { wrapper, errors } = await load();
+    const { wrapper, notifications, errors } = await load();
     const reference = await wrapper.createBranch('feature/x', wrapper.headCommit!);
     assert.equal(reference!.name(), 'refs/heads/feature/x');
     await wrapper.checkoutReference(reference!);
     assert.equal((await repo.git('symbolic-ref', 'HEAD')).trim(), 'refs/heads/feature/x');
+    assert.deepEqual(notifications.map((notification) => notification.message), ['Checked out feature/x']);
     await repo.git('checkout', '--quiet', 'main');
     await wrapper.renameReference(reference!, 'feature/y');
     assert.equal((await repo.git('branch', '--format=%(refname:short)')).trim(), 'feature/y\nmain');
@@ -530,7 +531,7 @@ describe('merges', () => {
     const { wrapper, notifications, errors } = await load();
     await wrapper.merge('refs/heads/main', 'refs/heads/feature');
     assert.deepEqual(errors(), []);
-    assert.equal(notifications[0].message, 'Merge successfully');
+    assert.equal(notifications[0].message, 'Merged successfully');
     assert.equal((await repo.git('log', '-1', '--format=%s|%p')).split('|')[0], "Merge branch 'feature'");
     assert.equal(repo.read('file.txt'), lines('a', 'feature', 'c'));
   });
@@ -561,6 +562,49 @@ describe('merges', () => {
     assert.equal(wrapper.getState(), RepoState.Commit);
     assert.equal((await repo.git('log', '-1', '--format=%s|%P')).trim(),
       `Merge feature|${await repo.sha('HEAD~1')} ${await repo.sha('feature')}`);
+  });
+
+  // Merges feature into main, which changed the same line
+  async function loadConflict() {
+    await repo.commit('Main', { 'file.txt': lines('a', 'main', 'c') });
+    await assert.rejects(repo.git('merge', '--quiet', 'feature'));
+    const result = await load();
+    return { ...result, conflict: result.wrapper.unstagedPatches[0] };
+  }
+
+  it('keeps the current version of a conflicted file', async () => {
+    const { wrapper, errors, conflict } = await loadConflict();
+    await wrapper.checkoutConflictVersion(conflict, ConflictVersion.Current);
+    assert.equal(repo.read('file.txt'), lines('a', 'main', 'c'));
+    // The file stays conflicted until it is marked as resolved
+    await wrapper.updateIndex();
+    assert.deepEqual(patchList(wrapper.unstagedPatches), [[PatchStatus.Conflicted, 'file.txt']]);
+    await wrapper.stagePatch(conflict);
+    await wrapper.finishMerge('Merge feature');
+    assert.equal(await repo.git('show', 'HEAD:file.txt'), lines('a', 'main', 'c'));
+    assert.deepEqual(errors(), []);
+  });
+
+  it('takes the incoming version of a conflicted file in place of its edits', async () => {
+    const { wrapper, errors, conflict } = await loadConflict();
+    repo.write('file.txt', 'edited\n');
+    await wrapper.checkoutConflictVersion(conflict, ConflictVersion.Incoming);
+    assert.equal(repo.read('file.txt'), lines('a', 'feature', 'c'));
+    await wrapper.updateIndex();
+    assert.deepEqual(patchList(wrapper.unstagedPatches), [[PatchStatus.Conflicted, 'file.txt']]);
+    assert.deepEqual(errors(), []);
+  });
+
+  it('reports a version that deleted the conflicted file', async () => {
+    await repo.git('rm', '--quiet', 'file.txt');
+    await repo.commit('Delete');
+    await assert.rejects(repo.git('merge', '--quiet', 'feature'));
+    const { wrapper, errors } = await load();
+    await wrapper.checkoutConflictVersion(wrapper.unstagedPatches[0], ConflictVersion.Current);
+    assert.equal(errors().length, 1);
+    assert.match(errors()[0].message, /^Unable to keep the current version: .*does not have our version/);
+    // The file is left as it was, with the incoming version
+    assert.equal(repo.read('file.txt'), lines('a', 'feature', 'c'));
   });
 
   it('aborts a merge', async () => {

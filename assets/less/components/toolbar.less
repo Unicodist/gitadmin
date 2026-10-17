@@ -1,0 +1,132 @@
+/* Repo toolbar */
+
+@toolbar-button-height: 32px;
+// Space between the buttons of a group
+@toolbar-group-gap: 2px;
+// Smallest width of the title and of the end of the toolbar. As they are as wide as each other, the
+// buttons are in the middle of the window, unless a long title pushes them to the right.
+@toolbar-side-width: clamp(0px, calc(50vw - 320px), 240px);
+
+div.repo-toolbar {
+  position: relative;
+  z-index: 6;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  height: @toolbar-height;
+  padding: 0 var(--space-3);
+  border-bottom: 1px solid var(--border);
+  background-color: var(--surface-1);
+
+  div.repo-title {
+    flex: 0 1 auto;
+    min-width: @toolbar-side-width;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+
+    span.repo-icon {
+      flex: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: @toolbar-button-height;
+      height: @toolbar-button-height;
+      border-radius: var(--radius-sm);
+      background-color: var(--accent-subtle);
+      color: var(--accent-text);
+    }
+
+    h1 {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: var(--font-size-md);
+    }
+  }
+
+  div.toolbar-buttons {
+    flex: 1 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  div.toolbar-group {
+    display: flex;
+    align-items: center;
+    gap: @toolbar-group-gap;
+
+    // Divider between two groups
+    & + div.toolbar-group::before {
+      content: "";
+      flex: none;
+      width: 1px;
+      height: 20px;
+      margin: 0 calc(var(--space-2) - @toolbar-group-gap) 0 var(--space-2);
+      background-color: var(--border);
+    }
+  }
+
+  div.toolbar-end {
+    flex: none;
+    display: flex;
+    justify-content: flex-end;
+    min-width: @toolbar-side-width;
+  }
+
+  button {
+    height: @toolbar-button-height;
+  }
+}
+
+// Tighter in a narrow window, so that the title keeps enough room
+@media (max-width: 1024px) {
+  div.repo-toolbar {
+    gap: var(--space-3);
+
+    button {
+      padding: 0 var(--space-2);
+    }
+  }
+}
+
+/* Spinner button */
+
+button.spinner-button {
+  svg.spinner-icon {
+    .spinning();
+    color: var(--accent-text);
+  }
+
+  &[aria-busy="true"] {
+    cursor: progress;
+  }
+
+  // Like a disabled button, a busy button does not react to the mouse
+  &.ghost-button[aria-busy="true"] {
+    &:hover,
+    &:active {
+      background-color: transparent;
+      color: var(--text-secondary);
+    }
+  }
+
+  // Without an icon, the spinner covers the label, which keeps its width
+  &.without-icon {
+    position: relative;
+
+    svg.spinner-icon {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      margin: (-@icon-size / 2) 0 0 (-@icon-size / 2);
+    }
+
+    &[aria-busy="true"] span.spinner-button-label {
+      opacity: 0;
+    }
+  }
+}

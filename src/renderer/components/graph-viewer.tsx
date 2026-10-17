@@ -111,11 +111,11 @@ export class GraphViewer extends React.PureComponent<GraphViewerProps, {}> {
           }}
           onOpenInputDialog={this.props.onOpenInputDialog}
           ref={this.referenceExplorer} />
-        <Splitter onDrag={this.handleLeftPanelResize} />
+        <Splitter label='Resize the references panel' onDrag={this.handleLeftPanelResize} />
         <div className='graph-container'>
           <div className='commit-graph' ref={this.div}>
             <GraphCanvas repo={this.props.repo} ref={this.canvas} />
-            <Splitter onDrag={this.handleCanvasResize} />
+            <Splitter label='Resize the commit graph' onDrag={this.handleCanvasResize} />
             <CommitList {...this.props}
               onScroll={this.handleListScroll}
               onResize={this.handleListResize}

@@ -1,7 +1,9 @@
-import * as Path from 'path';
 import * as React from 'react';
 import { makeModal } from './make-modal';
 import { showOpenDirectoryDialog } from '../helpers/native';
+import { getRepoPath } from '../helpers/dialogs';
+import { Icon } from './icon';
+import { RepoPathHint } from './repo-path-hint';
 
 export class InitRepoFormProps {
   onClose: () => void;
@@ -11,7 +13,6 @@ export class InitRepoFormProps {
 export class InitRepoFormState {
   repoName: string;
   repoPath: string;
-  repoFolder: string;
 }
 
 class InitRepoForm extends React.PureComponent<InitRepoFormProps, InitRepoFormState> {
@@ -19,13 +20,11 @@ class InitRepoForm extends React.PureComponent<InitRepoFormProps, InitRepoFormSt
     super(props);
     this.state = {
       repoName: '',
-      repoPath: '',
-      repoFolder: ''
+      repoPath: ''
     };
     this.handleRepoNameChange = this.handleRepoNameChange.bind(this);
     this.handleRepoPathChange = this.handleRepoPathChange.bind(this);
     this.handleBrowseClick = this.handleBrowseClick.bind(this);
-    this.handleRepoFolderChange = this.handleRepoFolderChange.bind(this);
     this.handleSubmit = this.handleSubmit.bind(this);
   }
 
@@ -45,63 +44,57 @@ class InitRepoForm extends React.PureComponent<InitRepoFormProps, InitRepoFormSt
     });
   }
 
-  handleRepoFolderChange(event: React.ChangeEvent<HTMLInputElement>) {
-    this.setState({repoFolder: event.target.value});
-  }
-
   handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (this.isPathValid()) {
-      const folderName = this.state.repoFolder || this.state.repoName;
-      const fullPath = Path.join(this.state.repoPath, folderName);
-      this.props.onInitRepo(fullPath);
+    const path = getRepoPath(this.state.repoPath, this.state.repoName);
+    if (path) {
+      this.props.onInitRepo(path.fullPath);
       this.props.onClose();
     }
   }
 
-  isPathValid() {
-    const folderName = this.state.repoFolder || this.state.repoName;
-    return this.state.repoPath.length > 0 && folderName.length > 0;
-  }
-
   render() {
+    const path = getRepoPath(this.state.repoPath, this.state.repoName);
     return (
-      <form className='modal-form' onSubmit={this.handleSubmit}>
-        <div className='field-container'>
-          <label htmlFor='name'>Name:</label>
-          <input type='text'
-            id='name'
-            name='repo-name'
-            value={this.state.repoName}
-            autoFocus={true}
-            onChange={this.handleRepoNameChange} />
+      <form className='modal-form repo-path-form' onSubmit={this.handleSubmit}>
+        <div className='modal-body'>
+          <div className='field'>
+            <label htmlFor='init-name'>Name</label>
+            <input type='text'
+              id='init-name'
+              name='repo-name'
+              value={this.state.repoName}
+              autoFocus={true}
+              spellCheck={false}
+              onChange={this.handleRepoNameChange} />
+          </div>
+          <div className='field'>
+            <label htmlFor='init-location'>Location</label>
+            <div className='input-row'>
+              <input type='text'
+                id='init-location'
+                name='repo-path'
+                value={this.state.repoPath}
+                spellCheck={false}
+                aria-describedby='init-full-path'
+                onChange={this.handleRepoPathChange} />
+              <button type='button' onClick={this.handleBrowseClick}>
+                <Icon name='folder-open' />
+                Browse
+              </button>
+            </div>
+            <RepoPathHint id='init-full-path'
+              path={path}
+              hint={this.state.repoPath ? 'Enter the name of the repository' : 'Choose where to put the repository'} />
+          </div>
         </div>
-        <div className='field-container'>
-          <label htmlFor='path'>Initialize in:</label>
-          <input type='text'
-            id='path'
-            name='repo-path'
-            value={this.state.repoPath}
-            onChange={this.handleRepoPathChange} />
-          <button type='button'
-            onClick={this.handleBrowseClick}>
-            Browse
+        <div className='modal-footer'>
+          <button type='button' onClick={this.props.onClose}>
+            Cancel
           </button>
-        </div>
-        <div className='field-container'>
-          <label htmlFor='folder'>Full path:</label>
-          <span id='prefix'>{this.state.repoPath}{Path.sep}</span>
-          <input type='text'
-            id='folder'
-            name='repo-folder'
-            placeholder={this.state.repoName}
-            value={this.state.repoFolder}
-            onChange={this.handleRepoFolderChange} />
-        </div>
-        <div className='button-container'>
-          <button className='green-button'
+          <button className='primary-button'
             type='submit'
-            disabled={!this.isPathValid()}>
+            disabled={path === null}>
             Create repository
           </button>
         </div>

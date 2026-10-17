@@ -1,8 +1,9 @@
 import * as Path from 'path';
-import { app, BrowserWindow, dialog, ipcMain, Menu, MenuItemConstructorOptions } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, MenuItemConstructorOptions, nativeTheme } from 'electron';
 import { setMenu } from './menu';
-import { ThemeManager } from '../shared/theme-manager';
-import { SerializedMenuItem } from '../shared/ipc';
+import { DEFAULT_THEME, getBackgroundColor, SYSTEM_THEME, ThemeManager } from '../shared/theme-manager';
+import { Field, Settings } from '../shared/settings';
+import { SerializedMenuItem, ThemeSource } from '../shared/ipc';
 
 // Use the production build of React in the packaged app (renderers inherit the environment)
 if (!process.env.NODE_ENV) {
@@ -31,8 +32,13 @@ async function initDevTools(window: BrowserWindow) {
 let mainWindow: BrowserWindow | null = null;
 
 const createWindow = async () => {
-  const themeManager = new ThemeManager();
-  await themeManager.loadTheme();
+  // The renderer applies the theme, the window and the native menus follow its color scheme
+  nativeTheme.themeSource = 'system';
+  const themeSetting = Settings.get(Field.Theme, DEFAULT_THEME);
+  const theme = new ThemeManager().loadTheme(themeSetting, nativeTheme.shouldUseDarkColors);
+  if (themeSetting !== SYSTEM_THEME) {
+    nativeTheme.themeSource = theme.scheme;
+  }
 
   // Create the browser window
   mainWindow = new BrowserWindow({
@@ -41,7 +47,7 @@ const createWindow = async () => {
     minHeight: 600,
     width: 800,
     height: 600,
-    backgroundColor: themeManager.getBackgroundColor(),
+    backgroundColor: getBackgroundColor(theme),
     webPreferences: {
       // The renderer runs git and reads the repository directly. It only ever
       // loads the local app files, never remote content.
@@ -76,6 +82,16 @@ app.on('browser-window-created', (_event, window) => {
 
 ipcMain.on('get-user-data-path', (event) => {
   event.returnValue = app.getPath('userData');
+});
+
+ipcMain.handle('set-theme-source', (event, themeSource: ThemeSource, backgroundColor?: string) => {
+  if (['system', 'light', 'dark'].includes(themeSource)) {
+    nativeTheme.themeSource = themeSource;
+  }
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (window && backgroundColor) {
+    window.setBackgroundColor(backgroundColor);
+  }
 });
 
 ipcMain.handle('show-open-dialog', (event, options: Electron.OpenDialogOptions) => {

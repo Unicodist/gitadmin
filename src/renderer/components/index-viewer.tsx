@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { PatchList } from './patch-list';
+import { Icon } from './icon';
 import { RepoWrapper, PatchType, RepoState, Patch } from '../helpers/repo-wrapper';
 
 export interface IndexViewerProps {
@@ -215,23 +216,26 @@ export class IndexViewer extends React.PureComponent<IndexViewerProps, IndexView
     if (this.props.repoState === RepoState.Merge) {
       return (
         <>
-          <button className='green-button'
+          <button className='primary-button'
             type='submit'
             disabled={this.props.repo.unstagedPatches.some((patch) => patch.isConflicted())}>
+            <Icon name='git-merge' />
             Commit and merge
           </button>
-          <button className='red-button'
+          <button className='danger-button'
             type='button'
             onClick={() => this.props.repo.abortMerge()}>
+            <Icon name='x' />
             Abort merge
           </button>
         </>
       );
     } else {
       return (
-        <button className='green-button'
+        <button className='primary-button'
           type='submit'
           disabled={this.state.summary.length === 0}>
+          <Icon name='git-commit-horizontal' />
           {this.state.amend ? 'Amend' : 'Commit'}
         </button>
       );
@@ -239,59 +243,81 @@ export class IndexViewer extends React.PureComponent<IndexViewerProps, IndexView
   }
 
   render() {
+    const unstagedCount = this.props.repo.unstagedPatches.length;
+    const stagedCount = this.props.repo.stagedPatches.length;
+    const merging = this.props.repoState === RepoState.Merge;
     return (
       <form className='commit-viewer index-viewer' ref={this.form} onSubmit={this.handleSubmit}>
-        <div className='commit-message'>
-          <h2>Index</h2>
+        <div className='viewer-header'>
+          <h2 className='viewer-title'>Index</h2>
+          {merging ?
+            <span className='merge-state'>
+              <Icon name='git-merge' size={14} />
+              Merging
+            </span> :
+            null}
         </div>
-        <div className='section-header'>
-          <p>Unstaged files ({this.props.repo.unstagedPatches.length})</p>
-          <button className='green-button'
-            type='button'
-            disabled={this.props.repo.unstagedPatches.length === 0}
-            onClick={this.handlePatchesStage}>
-            {this.formatButtonString('Stage', this.state.selectedUnstagedPatches)}
-          </button>
+        <div className='viewer-body'>
+          <div className='index-section' role='group' aria-labelledby='unstaged-files-title'>
+            <div className='section-header'>
+              <h3 className='section-label' id='unstaged-files-title'>Unstaged files ({unstagedCount})</h3>
+              <button className='small-button'
+                type='button'
+                disabled={unstagedCount === 0}
+                onClick={this.handlePatchesStage}>
+                <Icon name='plus' size={14} />
+                {this.formatButtonString('Stage', this.state.selectedUnstagedPatches)}
+              </button>
+            </div>
+            <PatchList repo={this.props.repo}
+              patches={this.props.repo.unstagedPatches}
+              type={PatchType.Unstaged}
+              selectedPatch={this.props.selectedPatch}
+              selectedPatches={this.state.selectedUnstagedPatches}
+              onPatchSelect={this.handleUnstagedPatchSelect}
+              onSelectedPatchesChange={this.handleSelectedUnstagedPatchesChange} />
+          </div>
+          <div className='index-section' role='group' aria-labelledby='staged-files-title'>
+            <div className='section-header'>
+              <h3 className='section-label' id='staged-files-title'>Staged files ({stagedCount})</h3>
+              <button className='small-button'
+                type='button'
+                disabled={stagedCount === 0}
+                onClick={this.handlePatchesUnstage}>
+                <Icon name='minus' size={14} />
+                {this.formatButtonString('Unstage', this.state.selectedStagedPatches)}
+              </button>
+            </div>
+            <PatchList repo={this.props.repo}
+              patches={this.props.repo.stagedPatches}
+              type={PatchType.Staged}
+              selectedPatch={this.props.selectedPatch}
+              selectedPatches={this.state.selectedStagedPatches}
+              onPatchSelect={this.handleStagedPatchSelect}
+              onSelectedPatchesChange={this.handleSelectedStagedPatchesChange} />
+          </div>
+          <div className='commit-form' role='group' aria-labelledby='commit-message-title'>
+            <div className='section-header'>
+              <h3 className='section-label' id='commit-message-title'>Commit message</h3>
+              {this.props.repo.headCommit && !merging ?
+                <div className='check-field'>
+                  <input type='checkbox' id='amend' name='amend' checked={this.state.amend} onChange={this.handleAmendChange} />
+                  <label htmlFor='amend'>Amend</label>
+                </div> :
+                null}
+            </div>
+            <input placeholder='Summary'
+              value={this.state.summary}
+              onChange={this.handleSummaryChange} />
+            <textarea rows={3}
+              placeholder='Description'
+              value={this.state.description}
+              onChange={this.handleDescriptionChange} />
+            <div className='submit-row'>
+              {this.getSubmitButton()}
+            </div>
+          </div>
         </div>
-        <PatchList repo={this.props.repo}
-          patches={this.props.repo.unstagedPatches}
-          type={PatchType.Unstaged}
-          selectedPatch={this.props.selectedPatch}
-          selectedPatches={this.state.selectedUnstagedPatches}
-          onPatchSelect={this.handleUnstagedPatchSelect}
-          onSelectedPatchesChange={this.handleSelectedUnstagedPatchesChange} />
-        <div className='section-header'>
-          <p>Staged files ({this.props.repo.stagedPatches.length})</p>
-          <button className='red-button'
-            type='button'
-            disabled={this.props.repo.stagedPatches.length === 0}
-            onClick={this.handlePatchesUnstage}>
-            {this.formatButtonString('Unstage', this.state.selectedStagedPatches)}
-           </button>
-        </div >
-        <PatchList repo={this.props.repo}
-          patches={this.props.repo.stagedPatches}
-          type={PatchType.Staged}
-          selectedPatch={this.props.selectedPatch}
-          selectedPatches={this.state.selectedStagedPatches}
-          onPatchSelect={this.handleStagedPatchSelect}
-          onSelectedPatchesChange={this.handleSelectedStagedPatchesChange} />
-        <div className='section-header'>
-          <p>Commit message</p>
-          {this.props.repo.headCommit && this.props.repoState !== RepoState.Merge ?
-          <div className='amend-container'>
-            <input type='checkbox' id='amend' name='amend' checked={this.state.amend} onChange={this.handleAmendChange} />
-            <label htmlFor='amend'>Amend</label>
-          </div> : null}
-        </div>
-        <input placeholder={'Summary'}
-          value={this.state.summary}
-          onChange={this.handleSummaryChange} />
-        <textarea rows={3}
-          placeholder='Description'
-          value={this.state.description}
-          onChange={this.handleDescriptionChange} />
-        {this.getSubmitButton()}
       </form>
     );
   }

@@ -1,0 +1,450 @@
+/* Patch viewer */
+
+@patch-bar-height: 40px;
+
+div.patch-viewer {
+  .left-viewer();
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--surface-1);
+
+  div.patch-header {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    height: @patch-bar-height;
+    // The close button is inset from the end as much as from the top and the bottom
+    padding: 0 6px 0 var(--space-3);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  // The icon of the file has the color of the status badges of the lists
+  .patch-file-icon {
+    flex: none;
+    display: inline-flex;
+    color: var(--text-secondary);
+
+    &.patch-status-added,
+    &.patch-status-untracked {
+      color: var(--success);
+    }
+
+    &.patch-status-modified {
+      color: var(--warning);
+    }
+
+    &.patch-status-deleted,
+    &.patch-status-conflicted {
+      color: var(--danger);
+    }
+
+    &.patch-status-renamed {
+      color: var(--accent-text);
+    }
+  }
+
+  h2.patch-path {
+    flex: 1;
+    font-size: var(--font-size-md);
+    font-weight: normal;
+    line-height: var(--line-height);
+    user-select: text;
+
+    .left {
+      color: var(--text-secondary);
+    }
+
+    .right {
+      color: var(--text-primary);
+      font-weight: var(--font-weight-medium);
+    }
+  }
+
+  div.patch-editor {
+    flex: 1;
+    min-height: 0;
+
+    &.hidden {
+      visibility: hidden;
+    }
+  }
+}
+
+/* Toolbar */
+
+div.patch-viewer div.patch-toolbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: @patch-bar-height;
+  // The icon of the first button, a ghost one, is aligned with the icon of the file
+  padding: 0 var(--space-3) 0 var(--space-1);
+  border-bottom: 1px solid var(--border);
+  container: patch-toolbar / inline-size;
+
+  // The view mode stays in the middle
+  .patch-toolbar-start,
+  .patch-toolbar-end {
+    flex: 1 1 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .patch-toolbar-end {
+    justify-content: flex-end;
+  }
+
+  .segmented-control {
+    flex: none;
+  }
+
+  // As high as the view mode
+  button {
+    height: var(--control-height);
+    border-radius: var(--radius-sm);
+  }
+
+  // A narrow viewer drops the labels of the buttons, the least useful first, so that the view mode
+  // stays in the middle. The labels are still read and the titles tell what the buttons do
+  @container patch-toolbar (width < 600px) {
+    .patch-toolbar-start button,
+    .patch-toolbar-end .danger-button {
+      .icon-only-button(var(--control-height));
+    }
+  }
+
+  @container patch-toolbar (width < 450px) {
+    button {
+      .icon-only-button(var(--control-height));
+    }
+  }
+
+  // The toolbar of a conflict shortens its labels first
+  @container patch-toolbar (width < 620px) {
+    .conflict-actions .label-end {
+      .visually-hidden();
+    }
+  }
+}
+
+// A button of a narrow toolbar or header, only its icon is left
+.icon-only-button(@size) {
+  width: @size;
+  padding: 0;
+
+  .button-label {
+    .visually-hidden();
+  }
+}
+
+/* Editors */
+
+div.patch-viewer {
+  // Monaco's stylesheet comes after index.css, these rules are more specific than its own
+  .monaco-editor {
+    font-family: var(--font-family);
+    --monaco-monospace-font: var(--font-mono);
+  }
+
+  // Like the other scrollbars of the app
+  .monaco-scrollable-element > .scrollbar > .slider {
+    border: 2px solid transparent;
+    border-radius: var(--radius-pill);
+    background-clip: padding-box;
+  }
+
+  // The overview of the changes of a diff, on the right
+  .monaco-diff-editor .diffOverview {
+    border-left: 1px solid var(--border-subtle);
+    background-color: transparent;
+  }
+
+  .monaco-diff-editor .diffViewport {
+    background-color: var(--hover);
+
+    &:hover {
+      background-color: var(--active);
+    }
+  }
+
+  // In the hunk and inline views, the column of the old line numbers is not tinted in red next to
+  // the added lines, which have no old line
+  .monaco-diff-editor .editor.original .margin-view-zones .gutter-delete {
+    background-color: transparent;
+  }
+}
+
+/* Hunk and conflict headers */
+
+// Drawn by the editors above the hunks and the conflicts, across the editor
+div.patch-viewer {
+  .hunk-widget,
+  .conflict-widget {
+    width: 100%;
+    container: widget-header / inline-size;
+  }
+
+  .widget-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    height: 100%;
+    // The buttons stay clear of the scrollbar
+    padding: 0 calc(@scrollbar-size + var(--space-1)) 0 var(--space-3);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    background-color: var(--surface-2);
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-tight);
+
+    // The first one is right under the toolbar, which has its own border
+    &.first-widget {
+      border-top: none;
+    }
+  }
+
+  .hunk-range {
+    flex: none;
+    color: var(--text-muted);
+    font-size: var(--font-size-sm);
+    white-space: nowrap;
+  }
+
+  .hunk-context {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+  }
+
+  .widget-actions {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    margin-left: auto;
+
+    // Monaco draws a thin ring on the buttons it holds, even for the mouse, they get the ring of the app
+    button:focus {
+      outline: none;
+    }
+
+    button:focus-visible {
+      outline: 2px solid var(--focus-ring);
+      outline-offset: 2px;
+    }
+  }
+
+  .conflict-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    color: var(--text-secondary);
+    font-weight: var(--font-weight-medium);
+    white-space: nowrap;
+
+    svg.icon {
+      color: var(--danger);
+    }
+  }
+
+  // A narrow hunk header drops the context, then the labels
+  @container widget-header (width < 400px) {
+    .hunk-context {
+      display: none;
+    }
+
+    .hunk-header .widget-actions button {
+      .icon-only-button(var(--control-height-sm));
+    }
+  }
+
+  // A narrow conflict header shortens the labels, then drops the title and the labels
+  @container widget-header (width < 680px) {
+    .conflict-header .label-end {
+      .visually-hidden();
+    }
+  }
+
+  @container widget-header (width < 530px) {
+    .conflict-title-text {
+      .visually-hidden();
+    }
+  }
+
+  @container widget-header (width < 420px) {
+    .conflict-header .widget-actions button {
+      .icon-only-button(var(--control-height-sm));
+    }
+  }
+}
+
+/* Margin buttons */
+
+// Stage or unstage a line, they show on hover over the numbers of the changed lines
+div.patch-viewer .margin-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+
+  .margin-button-face {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: calc(100% - 2px);
+    height: calc(100% - 2px);
+    border-radius: var(--radius-xs);
+    color: var(--text-on-emphasis);
+    opacity: 0;
+    transition: opacity var(--duration-fast) var(--easing);
+  }
+
+  &:hover .margin-button-face {
+    opacity: 1;
+  }
+
+  &.stage-line-button .margin-button-face {
+    background-color: var(--success-emphasis);
+  }
+
+  &.unstage-line-button .margin-button-face {
+    background-color: var(--danger-emphasis);
+  }
+}
+
+/* Conflicts */
+
+div.patch-viewer {
+  // Lines of the two versions, their markers are a little stronger
+  .conflict-current {
+    background-color: var(--success-subtle);
+  }
+
+  .conflict-start {
+    background-color: color-mix(in srgb, var(--success) 15%, var(--success-subtle));
+  }
+
+  .conflict-incoming {
+    background-color: var(--accent-subtle);
+  }
+
+  .conflict-end {
+    background-color: color-mix(in srgb, var(--accent) 15%, var(--accent-subtle));
+  }
+
+  // The colors of the lines that a button keeps
+  .conflict-swatch {
+    flex: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+
+    &.current {
+      background-color: var(--success);
+    }
+
+    &.incoming {
+      background-color: var(--accent-text);
+    }
+
+    &.both {
+      background-image: linear-gradient(var(--success) 50%, var(--accent-text) 50%);
+    }
+  }
+}
+
+/* Image viewer */
+
+div.patch-viewer div.image-viewer {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  align-content: start;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  overflow: auto;
+
+  figure.image-side {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    min-width: 0;
+    margin: 0;
+  }
+
+  figcaption {
+    .viewer-label();
+  }
+
+  // The images are drawn on a checkerboard, which shows their transparent parts
+  .image-frame {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 160px;
+    padding: var(--space-4);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: repeating-conic-gradient(var(--surface-2) 0% 25%, var(--surface-1) 0% 50%) 0 0 / 16px 16px;
+
+    img {
+      display: block;
+      max-width: 100%;
+      height: auto;
+    }
+
+    &.image-missing {
+      border-style: dashed;
+      background: var(--surface-1);
+    }
+  }
+
+  .image-details {
+    color: var(--text-muted);
+    font-size: var(--font-size-sm);
+  }
+}
+
+/* Binary viewer */
+
+div.patch-viewer div.binary-viewer {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+}
+
+/* Empty states */
+
+div.patch-viewer .viewer-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  text-align: center;
+
+  svg.icon {
+    margin-bottom: var(--space-1);
+    color: var(--text-muted);
+  }
+
+  .empty-state-title {
+    color: var(--text-secondary);
+    font-weight: var(--font-weight-medium);
+  }
+
+  .empty-state-hint {
+    color: var(--text-muted);
+    font-size: var(--font-size-sm);
+  }
+}

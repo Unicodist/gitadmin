@@ -1,6 +1,6 @@
 import * as React from 'react';
-import { CommitItem } from './commit-item';
-import { IndexItem } from './index-item';
+import { CommitItem, getCommitItemId } from './commit-item';
+import { IndexItem, INDEX_ITEM_ID } from './index-item';
 import { InputDialogHandler } from './input-dialog';
 import { RepoWrapper, RepoState, Commit } from '../helpers/repo-wrapper';
 import { getBranchColor } from '../helpers/commit-graph';
@@ -39,6 +39,7 @@ export class CommitList extends React.PureComponent<CommitListProps, CommitListS
     this.handleScroll = this.handleScroll.bind(this);
     this.handleResize = this.handleResize.bind(this);
     this.handleKeyUp = this.handleKeyUp.bind(this);
+    this.handleKeyDown = this.handleKeyDown.bind(this);
   }
 
   componentDidMount() {
@@ -92,6 +93,14 @@ export class CommitList extends React.PureComponent<CommitListProps, CommitListS
     }
   }
 
+  handleKeyDown(event: React.KeyboardEvent<HTMLUListElement>) {
+    // The arrows select the commits on key up, they must not scroll the list too. The other keys, like Tab, keep working.
+    if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  }
+
   scrollToItem() {
     // Scroll so that the commit is visible
     const i = this.getIndexOfSelectedCommit();
@@ -136,6 +145,15 @@ export class CommitList extends React.PureComponent<CommitListProps, CommitListS
       -1;
   }
 
+  // Row of the selection, for assistive technologies, if it is rendered
+  getActiveDescendant() {
+    const i = this.getIndexOfSelectedCommit();
+    if (i === -1) {
+      return this.state.start === -1 ? INDEX_ITEM_ID : undefined;
+    }
+    return i >= this.state.start && i < this.state.end ? getCommitItemId(this.props.selectedCommit!.sha()) : undefined;
+  }
+
   render() {
     // Select visible commits and add index if necessary
     const items: React.JSX.Element[] = [];
@@ -175,9 +193,12 @@ export class CommitList extends React.PureComponent<CommitListProps, CommitListS
     return (
       <div className='commit-list' onScroll={this.handleScroll} ref={this.div}>
         <ul style={style}
-          tabIndex={1}
+          role='listbox'
+          aria-label='Commits'
+          aria-activedescendant={this.getActiveDescendant()}
+          tabIndex={0}
           onKeyUp={this.handleKeyUp}
-          onKeyDown={(event) => {event.preventDefault(); event.stopPropagation();}}>
+          onKeyDown={this.handleKeyDown}>
           {items}
         </ul>
       </div>

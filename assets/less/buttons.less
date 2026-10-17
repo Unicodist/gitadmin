@@ -1,0 +1,125 @@
+/* Buttons */
+
+// A plain button is a secondary button. Add one of the classes below to change
+// it: primary-button for the main action of a view, danger-button for actions
+// that lose work, ghost-button for toolbars and lists. small-button and
+// icon-button change the size and combine with the others.
+
+button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: var(--control-height);
+  margin: 0;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background-color: var(--surface-2);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: var(--font-size);
+  font-weight: var(--font-weight-medium);
+  line-height: 1;
+  white-space: nowrap;
+  transition: background-color var(--duration-fast) var(--easing),
+    border-color var(--duration-fast) var(--easing),
+    color var(--duration-fast) var(--easing);
+
+  &:hover {
+    background-color: var(--surface-3);
+  }
+
+  &:active {
+    background-color: var(--surface-3);
+    border-color: var(--border-strong);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+
+    &:hover,
+    &:active {
+      background-color: var(--surface-2);
+      border-color: var(--border);
+    }
+  }
+}
+
+.primary-button {
+  background-color: var(--accent);
+  border-color: var(--accent);
+  color: var(--text-on-accent);
+
+  &:hover {
+    background-color: var(--accent-hover);
+    border-color: var(--accent-hover);
+  }
+
+  &:active {
+    background-color: var(--accent-pressed);
+    border-color: var(--accent-pressed);
+  }
+
+  &:disabled {
+    &:hover,
+    &:active {
+      background-color: var(--accent);
+      border-color: var(--accent);
+    }
+  }
+}
+
+.danger-button {
+  color: var(--danger);
+
+  &:hover,
+  &:active {
+    background-color: var(--danger-subtle);
+    border-color: var(--danger);
+  }
+}
+
+.ghost-button {
+  background-color: transparent;
+  border-color: transparent;
+  color: var(--text-secondary);
+
+  &:hover {
+    background-color: var(--hover);
+    color: var(--text-primary);
+  }
+
+  &:active {
+    background-color: var(--active);
+    border-color: transparent;
+    color: var(--text-primary);
+  }
+
+  &:disabled {
+    &:hover,
+    &:active {
+      background-color: transparent;
+      border-color: transparent;
+    }
+  }
+}
+
+.small-button {
+  gap: var(--space-1);
+  height: var(--control-height-sm);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-xs);
+  font-size: var(--font-size-sm);
+}
+
+// Square button that only holds an icon, it needs an aria-label and a title
+.icon-button {
+  width: var(--control-height);
+  padding: 0;
+
+  &.small-button {
+    width: var(--control-height-sm);
+  }
+}

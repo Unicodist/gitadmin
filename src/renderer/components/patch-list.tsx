@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { PatchItem } from './patch-item';
+import { Icon } from './icon';
 import { RepoWrapper, PatchType, Patch } from '../helpers/repo-wrapper';
 
 // Util
@@ -78,13 +79,42 @@ export class PatchList extends React.PureComponent<PatchListProps, {}> {
   }
 
   handleKeyDown(event: React.KeyboardEvent<HTMLUListElement>) {
-    if (this.props.selectedPatch || (this.props.selectedPatches !== undefined && this.props.selectedPatches.size > 0)) {
-      if (event.keyCode === 38 && this.iPatch > 0) {
-        this.handlePatchSelect(this.props.patches[this.iPatch - 1], event.ctrlKey, event.shiftKey);
-      } else if (event.keyCode === 40 && this.iAnchor < this.props.patches.length - 1) {
-        this.handlePatchSelect(this.props.patches[this.iPatch + 1], event.ctrlKey, event.shiftKey);
-      }
+    const patches = this.props.patches;
+    // The buttons of the rows keep their own keys
+    if (event.target !== event.currentTarget || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') || patches.length === 0) {
+      return;
     }
+    // The arrows move the selection, which scrolls into view by itself
+    event.preventDefault();
+    const selectedPatch = this.props.selectedPatch;
+    if (selectedPatch && patches.includes(selectedPatch)) {
+      // The selection may have been changed by the viewer since the last key
+      this.iPatch = patches.indexOf(selectedPatch);
+      this.iAnchor = this.iPatch;
+    } else if (!this.props.selectedPatches || this.props.selectedPatches.size === 0 || this.iPatch === undefined) {
+      // Nothing is selected in this list yet
+      this.handlePatchSelect(patches[event.key === 'ArrowDown' ? 0 : patches.length - 1], false, false);
+      return;
+    }
+    if (event.key === 'ArrowUp' && this.iPatch > 0) {
+      this.handlePatchSelect(patches[this.iPatch - 1], event.ctrlKey, event.shiftKey);
+    } else if (event.key === 'ArrowDown' && this.iPatch < patches.length - 1) {
+      this.handlePatchSelect(patches[this.iPatch + 1], event.ctrlKey, event.shiftKey);
+    }
+  }
+
+  renderEmptyState() {
+    // The files of a commit are loaded after the list is shown, an empty state would flash
+    if (this.props.type === PatchType.Committed) {
+      return null;
+    }
+    const unstaged = this.props.type === PatchType.Unstaged;
+    return (
+      <li className='patch-list-empty'>
+        <Icon name={unstaged ? 'circle-check' : 'inbox'} size={24} />
+        <span>{unstaged ? 'No unstaged changes' : 'No staged changes'}</span>
+      </li>
+    );
   }
 
   render() {
@@ -99,9 +129,10 @@ export class PatchList extends React.PureComponent<PatchListProps, {}> {
         key={generatePatchKey(patch)} />;
     });
 
+    // An empty list stays focusable, it may have the focus when its last file is staged
     return (
-      <ul className='patch-list' tabIndex={1} onKeyDown={this.handleKeyDown}>
-        {patchItems}
+      <ul className={patchItems.length > 0 ? 'patch-list' : 'patch-list empty'} tabIndex={0} onKeyDown={this.handleKeyDown}>
+        {patchItems.length > 0 ? patchItems : this.renderEmptyState()}
       </ul>
     );
   }

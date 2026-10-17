@@ -45,27 +45,38 @@ class CreateBranchForm extends React.PureComponent<CreateBranchFormProps, Create
   }
 
   render() {
+    const commit = this.props.commit;
     return (
       <form className='modal-form' onSubmit={this.handleSubmit}>
-        <div className='field-container'>
-          <label htmlFor='name'>Name:</label>
-          <input type='text'
-            id='name'
-            name='repo-name'
-            value={this.state.branchName}
-            autoFocus={true}
-            onChange={this.handleBranchNameChange} />
+        <div className='modal-body'>
+          <div className='field'>
+            <label htmlFor='branch-name'>Name</label>
+            <input type='text'
+              id='branch-name'
+              name='branch-name'
+              value={this.state.branchName}
+              autoFocus={true}
+              spellCheck={false}
+              aria-describedby='branch-start'
+              onChange={this.handleBranchNameChange} />
+            <p className='field-hint branch-start' id='branch-start' title={commit.summary()}>
+              Starts at <code>{commit.sha().substring(0, 7)}</code> {commit.summary()}
+            </p>
+          </div>
+          <div className='check-field'>
+            <input type='checkbox'
+              id='branch-checkout'
+              name='checkout'
+              checked={this.state.checkout}
+              onChange={this.handleCheckoutChange} />
+            <label htmlFor='branch-checkout'>Check out the new branch</label>
+          </div>
         </div>
-        <div className='field-container'>
-          <label htmlFor='checkout'>Checkout after create:</label>
-          <input type='checkbox'
-            id='checkout'
-            name='checkout'
-            checked={this.state.checkout}
-            onChange={this.handleCheckoutChange} />
-        </div>
-        <div className='button-container'>
-          <button className='green-button'
+        <div className='modal-footer'>
+          <button type='button' onClick={this.props.onClose}>
+            Cancel
+          </button>
+          <button className='primary-button'
             type='submit'
             disabled={!this.state.branchName}>
             Create branch

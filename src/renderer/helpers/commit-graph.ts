@@ -2,24 +2,26 @@ import { RepoWrapper } from './repo-wrapper';
 import IntervalTree from 'node-interval-tree';
 import FastPriorityQueue from 'fastpriorityqueue';
 
-const BRANCH_COLORS = [
-  'dodgerblue',
-  'DarkCyan',
-  'DarkGoldenRod',
-  'DarkGrey',
-  'DarkGreen',
-  'DarkKhaki',
-  'DarkMagenta',
-  'DarkOliveGreen',
-  'DarkOrange',
-  'DarkOrchid',
-  'DarkRed',
-  'DarkSalmon',
-  'DarkSeaGreen',
-  'DarkSlateBlue',
-  'DarkSlateGrey',
-  'DarkTurquoise',
-  'DarkViolet',
+// The colors have the same luminance so that no branch stands out, and a contrast of at least
+// 3:1 with the backgrounds of the commit list in both themes, selected rows included.
+// Consecutive colors are far apart in hue so that neighbor branches are easy to tell apart.
+export const BRANCH_COLORS = [
+  '#347ef6',
+  '#e0540b',
+  '#0d9186',
+  '#aa58f7',
+  '#f33455',
+  '#149544',
+  '#c36b05',
+  '#7073f2',
+  '#088dad',
+  '#e0478b',
+  '#59900c',
+  '#9266f7',
+  '#ef3f3f',
+  '#0288ce',
+  '#cc44dd',
+  '#059468'
 ];
 
 export function getBranchColor(j: number) {

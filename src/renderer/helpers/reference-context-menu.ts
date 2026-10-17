@@ -1,7 +1,6 @@
-import { clipboard } from 'electron';
 import { RepoWrapper, removeReferencePrefix, Reference } from './repo-wrapper';
 import { InputDialogHandler } from '../components/input-dialog';
-import { buildMenu, MenuItem } from './native';
+import { buildMenu, copyToClipboard, MenuItem } from './native';
 
 function createBranchContextMenu(repo: RepoWrapper,
   reference: Reference,
@@ -41,7 +40,7 @@ function createBranchContextMenu(repo: RepoWrapper,
     },
     {
       label: 'Copy branch name to clipboard',
-      click: () => clipboard.writeText(shortName)
+      click: () => copyToClipboard(shortName)
     }
   ];
   return buildMenu(template);
@@ -69,7 +68,7 @@ function createTagContextMenu(repo: RepoWrapper,
     },
     {
       label: 'Copy tag name to clipboard',
-      click: () => clipboard.writeText(shortName)
+      click: () => copyToClipboard(shortName)
     }
   ];
   return buildMenu(template);

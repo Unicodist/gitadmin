@@ -6,6 +6,10 @@ import { pathToFileURL } from 'url';
 const MONACO_PATH = Path.join(__dirname, '../../../node_modules/monaco-editor/min');
 
 let monacoPromise: Promise<any> | null = null;
+let loadedMonaco: any = null;
+
+// Editor themes made from the app themes, they are defined as soon as Monaco is loaded
+const editorThemes = new Map<string, any>();
 
 export function loadMonaco(): Promise<any> {
   if (!monacoPromise) {
@@ -22,8 +26,28 @@ export function loadMonaco(): Promise<any> {
       });
       // Monaco's language features do not understand the Node environment
       (self as any).module = undefined;
-      amdRequire(['vs/editor/editor.main'], (monaco: any) => resolve(monaco), reject);
+      amdRequire(['vs/editor/editor.main'], (monaco: any) => {
+        loadedMonaco = monaco;
+        for (const [name, data] of editorThemes) {
+          monaco.editor.defineTheme(name, data);
+        }
+        resolve(monaco);
+      }, reject);
     });
   }
   return monacoPromise;
+}
+
+// Registers an editor theme (Monaco's IStandaloneThemeData) under a name that can be passed
+// to monaco.editor.setTheme. Registering a name again updates the theme.
+export function registerEditorTheme(name: string, data: any) {
+  editorThemes.set(name, data);
+  if (loadedMonaco) {
+    loadedMonaco.editor.defineTheme(name, data);
+  }
+}
+
+// Font of the editors, Monaco needs the names of the fonts rather than a CSS variable
+export function getEditorFontFamily() {
+  return getComputedStyle(document.documentElement).getPropertyValue('--font-mono').trim();
 }

@@ -1,0 +1,32 @@
+/* Loading screen */
+
+div.loading-screen {
+  .left-viewer();
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  background-color: var(--surface-1);
+  color: var(--text-secondary);
+  // Shows up after a moment, so that it does not flash when the repository opens quickly.
+  // It is only a fade, which stays when reduced motion is requested.
+  animation: loading-screen-appear var(--duration) var(--easing) 150ms both;
+
+  // The animation and its slower version for reduced motion come from div.spinner
+  div.spinner {
+    width: 32px;
+    height: 32px;
+    border-width: 3px;
+  }
+}
+
+@keyframes loading-screen-appear {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}

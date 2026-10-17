@@ -3,15 +3,17 @@ import { RepoWrapper, PatchType, DiffLine, Hunk, Patch } from '../helpers/repo-w
 import { openInEditor } from '../helpers/open-in-editor';
 import { makeCancellable, CancellablePromise } from '../helpers/make-cancellable';
 import { arePatchesSimilar } from '../helpers/patch-comparison';
-import { loadMonaco } from '../helpers/monaco-loader';
+import { getEditorFontFamily, loadMonaco } from '../helpers/monaco-loader';
+import { createIconElement } from '../helpers/icons';
+import { splitHunkHeader } from '../helpers/viewer-format';
+import { createWidgetButton, createWidgetHeader, getEditorOptions, WIDGET_HEADER_HEIGHT } from '../helpers/viewer-widgets';
+import { Icon } from './icon';
 
 // Load Monaco
 
 let monaco: any;
 
 // TextPatchViewer
-
-const LINE_HEIGHT = 19; // To improve
 
 enum ViewMode {
   Hunk,
@@ -90,6 +92,8 @@ export class TextPatchViewer extends React.PureComponent<TextPatchViewerProps, {
     }
     if (this.props.editorTheme !== prevProps.editorTheme) {
       monaco.editor.setTheme(this.props.editorTheme);
+      // A theme can change the monospace font
+      this.editor.updateOptions({ fontFamily: getEditorFontFamily() });
     }
     if (this.props.options !== prevProps.options) {
       this.editor.updateOptions(this.props.options);
@@ -179,6 +183,7 @@ export class TextPatchViewer extends React.PureComponent<TextPatchViewerProps, {
         automaticLayout: true,
         renderSideBySide: false,
         readOnly: true,
+        ...getEditorOptions(),
         ...this.props.options
       };
       this.editor = monaco.editor.createDiffEditor(this.divEditor.current, options);
@@ -221,6 +226,8 @@ export class TextPatchViewer extends React.PureComponent<TextPatchViewerProps, {
     this.editor.updateOptions({
       renderSideBySide: this.viewMode === ViewMode.Split
     });
+    // Out of the split view, the original editor only shows the old line numbers and the keyboard skips it
+    this.editor.getOriginalEditor().updateOptions({ tabIndex: this.viewMode === ViewMode.Split ? 0 : -1 });
     // Reset editor
     this.resetEditor();
     // Update models
@@ -332,48 +339,62 @@ export class TextPatchViewer extends React.PureComponent<TextPatchViewerProps, {
     });
   }
 
+  createHunkHeader(hunk: Hunk, first: boolean) {
+    const repo = this.props.repo;
+    const patch = this.props.patch;
+    const header = createWidgetHeader('hunk-header', first);
+    const [range, context] = splitHunkHeader(hunk.header);
+    const rangeNode = document.createElement('code');
+    rangeNode.className = 'hunk-range';
+    rangeNode.textContent = range;
+    header.appendChild(rangeNode);
+    // The line that git shows for context, like the name of the function
+    if (context) {
+      const contextNode = document.createElement('code');
+      contextNode.className = 'hunk-context';
+      contextNode.textContent = context;
+      header.appendChild(contextNode);
+    }
+    const actionsNode = document.createElement('div');
+    actionsNode.className = 'widget-actions';
+    if (this.props.type === PatchType.Unstaged) {
+      actionsNode.append(
+        createWidgetButton({
+          label: 'Discard',
+          title: 'Discard the changes of this hunk',
+          classNames: ['danger-button'],
+          icon: 'undo-2',
+          onClick: repo.discardHunk.bind(repo, patch, hunk)
+        }),
+        createWidgetButton({ label: 'Stage', title: 'Stage this hunk', icon: 'plus', onClick: repo.stageHunk.bind(repo, patch, hunk) })
+      );
+    } else if (this.props.type === PatchType.Staged) {
+      actionsNode.append(
+        createWidgetButton({ label: 'Unstage', title: 'Unstage this hunk', icon: 'minus', onClick: repo.unstageHunk.bind(repo, patch, hunk) })
+      );
+    }
+    header.appendChild(actionsNode);
+    return header;
+  }
+
+  // In the hunk view, the original editor is the column of the old line numbers on the left. It gets a view
+  // zone as high as the header of the hunk, which continues the header over the column
+  createHunkGutter(first: boolean) {
+    const node = createWidgetHeader('hunk-gutter', first);
+    node.setAttribute('aria-hidden', 'true');
+    return node;
+  }
+
   createHunkWidgets() {
     // Create widgets
     const overlayWidgets: any[] = [];
     for (let i = 0; i < this.hunks.length; ++i) {
       const hunk = this.hunks[i];
       const id = `hunk.${this.overlayWidgets[Editor.Modified].length}`;
-      const repo = this.props.repo;
-      const patch = this.props.patch;
 
       const overlayNode = document.createElement('div');
       overlayNode.classList.add('hunk-widget');
-
-      const contentNode = document.createElement('div');
-      const textNode = document.createElement('p');
-      textNode.textContent = `@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines}`;
-      contentNode.appendChild(textNode);
-      if (this.props.type === PatchType.Unstaged) {
-        const buttonsNode = document.createElement('div');
-        // Discard button
-        const discardButton = document.createElement('button');
-        discardButton.textContent = 'Discard';
-        discardButton.className = 'red-button';
-        discardButton.addEventListener('click', repo.discardHunk.bind(repo, patch, hunk));
-        buttonsNode.appendChild(discardButton);
-        // Stage button
-        const stageButton = document.createElement('button');
-        stageButton.className = 'green-button';
-        stageButton.textContent = 'Stage';
-        stageButton.addEventListener('click', repo.stageHunk.bind(repo, patch, hunk));
-        buttonsNode.appendChild(stageButton);
-        contentNode.appendChild(buttonsNode);
-      } else if (this.props.type === PatchType.Staged) {
-        const buttonsNode = document.createElement('div');
-        // Unstage button
-        const unstageButton = document.createElement('button');
-        unstageButton.className = 'red-button';
-        unstageButton.textContent = 'Unstage';
-        unstageButton.addEventListener('click', repo.unstageHunk.bind(repo, patch, hunk));
-        buttonsNode.appendChild(unstageButton);
-        contentNode.appendChild(buttonsNode);
-      }
-      overlayNode.appendChild(contentNode);
+      overlayNode.appendChild(this.createHunkHeader(hunk, i === 0));
 
       overlayWidgets.push({
         getId: () => id,
@@ -392,7 +413,7 @@ export class TextPatchViewer extends React.PureComponent<TextPatchViewerProps, {
         // Used only to compute the position.
         this.viewZoneIds[Editor.Modified].push(changeAccessor.addZone({
           afterLineNumber: i === 0 ? 0 : this.hunks[i].newStart - 1,
-          heightInLines: 2,
+          heightInPx: WIDGET_HEADER_HEIGHT,
           domNode: document.createElement('div'),
           onDomNodeTop: (top: number) => {
             overlayWidget.getDomNode().style.top = top + 'px';
@@ -400,6 +421,18 @@ export class TextPatchViewer extends React.PureComponent<TextPatchViewerProps, {
           onComputedHeight: (height: number) => {
             overlayWidget.getDomNode().style.height = height + 'px';
           }
+        }));
+      }
+    });
+    // The diff editor aligns the lines of the two editors, the zones of the same height at the
+    // same lines keep them aligned
+    editors[Editor.Original].changeViewZones((changeAccessor: any) => {
+      for (let i = 0; i < this.hunks.length; ++i) {
+        this.viewZoneIds[Editor.Original].push(changeAccessor.addZone({
+          afterLineNumber: i === 0 ? 0 : this.hunks[i].oldStart - 1,
+          heightInPx: WIDGET_HEADER_HEIGHT,
+          domNode: this.createHunkGutter(i === 0),
+          marginDomNode: this.createHunkGutter(i === 0)
         }));
       }
     });
@@ -476,17 +509,28 @@ export class TextPatchViewer extends React.PureComponent<TextPatchViewerProps, {
   }
 
   createMarginButtons() {
-    const className = this.props.type === PatchType.Unstaged ? 'stage-line-button' : 'unstage-line-button';
+    const unstaged = this.props.type === PatchType.Unstaged;
+    const className = unstaged ? 'stage-line-button' : 'unstage-line-button';
     const editors = [this.editor.getOriginalEditor(), this.editor.getModifiedEditor()];
+    // The buttons are as high as the lines, whatever the font size
+    const lineHeight = editors[Editor.Modified].getOption(monaco.editor.EditorOption.lineHeight);
 
     const createMarginButton = (iEditor: Editor, i: number, prefix: string) => {
       // Create an overlay widget
       const overlayNode = document.createElement('div');
       overlayNode.addEventListener('mousedown', this.handleMarginButtonClick.bind(this, i, iEditor));
-      overlayNode.classList.add(className, 'tooltip-right');
+      overlayNode.classList.add('margin-button', className, 'tooltip-right');
+      // A shortcut for the mouse, the context menu of the editor stages the selected lines with the keyboard
+      overlayNode.setAttribute('aria-hidden', 'true');
+      overlayNode.style.width = `${lineHeight}px`;
+      overlayNode.style.height = `${lineHeight}px`;
+      const faceNode = document.createElement('span');
+      faceNode.className = 'margin-button-face';
+      faceNode.appendChild(createIconElement(unstaged ? 'plus' : 'minus', 12));
+      overlayNode.appendChild(faceNode);
       const tooltipNode = document.createElement('span');
       tooltipNode.classList.add('tooltip-text');
-      tooltipNode.textContent = this.props.type === PatchType.Unstaged ? 'Stage this line' : 'Unstage this line';
+      tooltipNode.textContent = unstaged ? 'Stage this line' : 'Unstage this line';
       overlayNode.appendChild(tooltipNode);
       const overlayWidget = {
         getId: () => `${prefix}-${i}`,
@@ -502,7 +546,7 @@ export class TextPatchViewer extends React.PureComponent<TextPatchViewerProps, {
           heightInLines: 0,
           domNode: document.createElement('div'),
           onDomNodeTop: (top: number) => {
-            overlayNode.style.top = top - LINE_HEIGHT + 'px';
+            overlayNode.style.top = top - lineHeight + 'px';
           }
         }));
       });
@@ -535,35 +579,62 @@ export class TextPatchViewer extends React.PureComponent<TextPatchViewerProps, {
     const rightButtons = [];
     if (this.props.type === PatchType.Unstaged) {
       rightButtons.push(
-        <button className='red-button' onClick={this.handleFileDiscard} key='discard'>Discard file</button>,
-        <button className='green-button' onClick={this.handleFileStage} key='stage'>Stage file</button>
+        <button type='button'
+          className='danger-button small-button'
+          title='Discard all the changes of the file'
+          onClick={this.handleFileDiscard}
+          key='discard'>
+          <Icon name='undo-2' />
+          <span className='button-label'>Discard file</span>
+        </button>,
+        <button type='button'
+          className='primary-button small-button'
+          title='Stage all the changes of the file'
+          onClick={this.handleFileStage}
+          key='stage'>
+          <Icon name='plus' />
+          <span className='button-label'>Stage file</span>
+        </button>
       );
     } else if (this.props.type === PatchType.Staged) {
       rightButtons.push(
-        <button className='red-button' onClick={this.handleFileUnstage} key='unstage'>Unstage file</button>
+        <button type='button'
+          className='small-button'
+          title='Unstage all the changes of the file'
+          onClick={this.handleFileUnstage}
+          key='unstage'>
+          <Icon name='minus' />
+          <span className='button-label'>Unstage file</span>
+        </button>
       );
     }
     return (
       <>
-        <div className="patch-toolbar">
-          <div>
-            <button onClick={this.handleOpenInEditor}>Open in editor</button>
+        <div className='patch-toolbar'>
+          <div className='patch-toolbar-start'>
+            <button type='button'
+              className='ghost-button small-button'
+              title='Open the file in your editor'
+              onClick={this.handleOpenInEditor}>
+              <Icon name='external-link' />
+              <span className='button-label'>Open in editor</span>
+            </button>
           </div>
-          <div className="view-mode-selector">
-            <input type="radio" id="hunk-mode" name="view-mode-selector"
+          <div className='segmented-control view-mode-selector' role='radiogroup' aria-label='View mode'>
+            <input type='radio' id='hunk-mode' name='view-mode-selector'
               defaultChecked={this.viewMode === ViewMode.Hunk}
               onInput={this.handleViewModeChange.bind(this, ViewMode.Hunk)} />
-            <label htmlFor="hunk-mode">Hunk</label >
-            <input type="radio" id="inline-mode" name="view-mode-selector"
+            <label htmlFor='hunk-mode'>Hunk</label>
+            <input type='radio' id='inline-mode' name='view-mode-selector'
               defaultChecked={this.viewMode === ViewMode.Inline}
               onInput={this.handleViewModeChange.bind(this, ViewMode.Inline)} />
-            <label htmlFor="inline-mode">Inline</label>
-            <input type="radio" id="split-mode" name="view-mode-selector"
+            <label htmlFor='inline-mode'>Inline</label>
+            <input type='radio' id='split-mode' name='view-mode-selector'
               defaultChecked={this.viewMode === ViewMode.Split}
               onInput={this.handleViewModeChange.bind(this, ViewMode.Split)} />
-            <label htmlFor="split-mode">Split</label>
+            <label htmlFor='split-mode'>Split</label>
           </div>
-          <div>
+          <div className='patch-toolbar-end'>
             {rightButtons}
           </div>
         </div>

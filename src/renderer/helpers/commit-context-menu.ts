@@ -1,7 +1,6 @@
-import { clipboard } from 'electron';
 import { RepoWrapper, ResetType, removeReferencePrefix, Commit } from './repo-wrapper';
 import { InputDialogHandler } from '../components/input-dialog';
-import { buildMenu, MenuItem } from './native';
+import { buildMenu, copyToClipboard, MenuItem } from './native';
 
 export function createCommitContextMenu(repo: RepoWrapper,
   commit: Commit,
@@ -52,7 +51,7 @@ export function createCommitContextMenu(repo: RepoWrapper,
     },
     {
       label: 'Copy commit sha to clipboard',
-      click: () => clipboard.writeText(commit.sha())
+      click: () => copyToClipboard(commit.sha())
     },
     {
       type: 'separator'

@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { ReferenceItem } from './reference-item';
+import { ReferenceSection } from './reference-section';
 import { InputDialogHandler } from './input-dialog';
 import { RepoWrapper, Commit, Reference } from '../helpers/repo-wrapper';
 
@@ -44,15 +45,12 @@ export class ReferenceList extends React.PureComponent<ReferenceListProps, Refer
           key={name} />;
       });
     return (
-      <>
-        <h3 onClick={this.handleClick}>
-          {this.props.title}
-          <span>{this.state.hide ? '+' : '\u2212'}</span>
-        </h3>
-        <ul className={this.state.hide ? 'hidden' : ''}>
-          {referenceItems}
-        </ul>
-      </>
+      <ReferenceSection title={this.props.title}
+        count={referenceItems.length}
+        collapsed={this.state.hide}
+        onToggle={this.handleClick}>
+        {referenceItems}
+      </ReferenceSection>
     );
   }
 }

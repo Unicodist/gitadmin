@@ -1,0 +1,131 @@
+/* Graph viewer */
+
+div.graph-viewer {
+  .left-viewer();
+  display: flex;
+
+  div.graph-container {
+    position: relative;
+    flex: 1;
+    min-width: calc(var(--canvas-width) + @commit-list-min-width);
+    background-color: var(--surface-1);
+  }
+}
+
+/* Commit graph */
+
+div.commit-graph {
+  min-width: @canvas-min-width;
+  width: var(--canvas-width);
+  height: 100%;
+  overflow-x: scroll;
+  overflow-y: hidden;
+
+  // Transparent, the rows of the list are drawn under it
+  canvas {
+    position: sticky;
+    margin-left: auto;
+    padding: 0px 10px;
+    display: block;
+    z-index: 2;
+    pointer-events: none;
+  }
+
+  // Between the graph and the summaries, it looks like the other splitters
+  .splitter {
+    position: absolute;
+    top: 0px;
+    left: var(--canvas-width);
+    height: 100%;
+    z-index: 3;
+  }
+}
+
+/* Commit list */
+
+div.commit-list {
+  width: 100%;
+  height: calc(100% - @scrollbar-size);
+  position: absolute;
+  top: 0px;
+  z-index: 1;
+  overflow-y: scroll;
+  text-align: left;
+
+  // The list is as high as all the commits, the ring is drawn by its visible part
+  &:has(> ul:focus-visible) {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: -2px;
+  }
+
+  ul {
+    min-height: 100%;
+    margin: 0;
+    padding-left: 0;
+    list-style: none;
+
+    &:focus-visible {
+      outline: none;
+    }
+  }
+
+  // The rows span the whole width, the graph is drawn across them
+  li.commit-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    height: @commit-list-item-height;
+    padding: 0 var(--space-3) 0 calc(var(--canvas-width) + var(--space-4));
+    color: var(--text-primary);
+    white-space: nowrap;
+    transition: background-color var(--duration-fast) var(--easing);
+    // The badges fold when the row is narrow, see reference-badge.less
+    container: commit-item / inline-size;
+
+    &:hover {
+      background-color: var(--hover);
+    }
+
+    &.selected-commit {
+      background-color: var(--selected);
+
+      &:hover {
+        background-color: var(--selected-hover);
+      }
+    }
+  }
+
+  // The badges and the summary share the row, 60% for the badges when both are long, and each one
+  // takes the room that the other does not need
+  .commit-badges {
+    display: flex;
+    flex: 3 1 0;
+    gap: var(--space-1);
+    min-width: 0;
+    max-width: max-content;
+    // Nothing spills over the summary when a wide graph leaves the row almost no room
+    overflow: hidden;
+  }
+
+  .commit-summary {
+    flex: 2 1 0;
+    min-width: 0;
+    max-width: max-content;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: var(--line-height);
+  }
+
+  li.index-item {
+    gap: var(--space-1);
+
+    .commit-summary {
+      flex: 0 1 auto;
+    }
+
+    .index-state {
+      flex-shrink: 0;
+      color: var(--text-muted);
+    }
+  }
+}

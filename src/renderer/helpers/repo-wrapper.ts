@@ -58,6 +58,12 @@ export enum ResetType {
   Hard = 'hard'
 }
 
+// Version of a conflicted file, git calls the current one "ours" and the incoming one "theirs"
+export enum ConflictVersion {
+  Current = 'ours',
+  Incoming = 'theirs'
+}
+
 export interface RepoLocation {
   workdir: string;
   gitDir: string;
@@ -425,7 +431,7 @@ export class RepoWrapper {
     const target = reference.isBranch() ? [reference.shorthand()] : ['--detach', reference.name()];
     await this.tryRun(`Unable to checkout to ${reference.shorthand()}`,
       () => this.git(['checkout', '--quiet', ...target, '--']),
-      `Checkout successfully to ${reference.shorthand()}`);
+      `Checked out ${reference.shorthand()}`);
   }
 
   async reset(target: Commit, resetType: ResetType) {
@@ -593,6 +599,12 @@ export class RepoWrapper {
     });
   }
 
+  // Replaces a conflicted file of the working directory with one of its versions, the file stays conflicted until it is staged
+  async checkoutConflictVersion(patch: Patch, version: ConflictVersion) {
+    const failureMessage = version === ConflictVersion.Current ? 'Unable to keep the current version' : 'Unable to take the incoming version';
+    await this.tryRun(failureMessage, () => this.git(['checkout', '--quiet', `--${version}`, '--', patch.newFile.path]));
+  }
+
   getIdentityEnvironment(committerOnly = false) {
     const identity = this.getIdentity();
     if (!identity) {
@@ -702,7 +714,7 @@ export class RepoWrapper {
       }
       // The full reference name avoids ambiguities, but git would use it in the message
       await this.git(['merge', '--no-edit', '-m', getMergeMessage(from), from], { env: this.getIdentityEnvironment() });
-    }, 'Merge successfully');
+    }, 'Merged successfully');
   }
 
   async getMergeHeads() {
