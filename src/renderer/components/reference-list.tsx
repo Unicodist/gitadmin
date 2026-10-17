@@ -59,7 +59,7 @@ export class ReferenceList extends React.PureComponent<ReferenceListProps, Refer
           reference={reference}
           selected={this.props.head !== null && this.props.head.name() === reference.name()}
           focus={this.props.focus}
-          hidden={this.props.repo.isFocused() && this.props.repo.isHidden(reference)}
+          hidden={(this.props.repo.isFocused() || this.props.repo.isFiltering()) && this.props.repo.isHidden(reference)}
           onOpenInputDialog={this.props.onOpenInputDialog}
           onFocusChange={this.props.onFocusChange}
           onClick={() => this.handleItemClick(reference)}

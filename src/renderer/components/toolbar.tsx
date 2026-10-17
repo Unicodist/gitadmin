@@ -2,13 +2,19 @@ import * as React from 'react';
 import { RepoWrapper, removeReferencePrefix, Commit } from '../helpers/repo-wrapper';
 import { Icon } from './icon';
 import { SpinnerButton } from './spinner-button';
+import { GraphFilterMenu } from './graph-filter-menu';
+import { GraphFilters } from '../helpers/graph-filters';
 
 export class ToolbarProps {
   repo: RepoWrapper;
   selectedCommit: Commit | null;
+  filters: GraphFilters;
+  // The graph is focused, the filters wait until the focus is cleared
+  focused: boolean;
   onRepoClose: () => void;
   onCreateBranch: (commit: Commit) => void;
   onOpenFocusDialog: () => void;
+  onFiltersChange: (filters: GraphFilters) => void;
 }
 
 export class Toolbar extends React.PureComponent<ToolbarProps, {}> {
@@ -96,6 +102,9 @@ export class Toolbar extends React.PureComponent<ToolbarProps, {}> {
               <Icon name='list-filter' />
               Focus
             </button>
+            <GraphFilterMenu filters={this.props.filters}
+              focused={this.props.focused}
+              onFiltersChange={this.props.onFiltersChange} />
           </div>
           <div className='toolbar-group' role='group' aria-label='Stash actions'>
             <SpinnerButton value='Stash'

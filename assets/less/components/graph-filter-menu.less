@@ -1,0 +1,77 @@
+/* Graph filter menu */
+
+// The quick toggles of the graph, in a menu under their toolbar button
+div.graph-filter-menu {
+  position: relative;
+
+  // The filters are on: a dot next to the label, the title tells which ones
+  button.filtering {
+    color: var(--accent-text);
+  }
+
+  span.graph-filter-dot {
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-radius: var(--radius-pill);
+    background-color: var(--accent);
+  }
+
+  div.graph-filter-popover {
+    position: absolute;
+    top: calc(100% + var(--space-1));
+    left: 0;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    width: 240px;
+    padding: var(--space-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background-color: var(--surface-1);
+    box-shadow: var(--shadow-md);
+  }
+
+  p.graph-filter-hint {
+    padding: var(--space-1) var(--space-2) var(--space-2);
+    color: var(--text-muted);
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-tight);
+    white-space: normal;
+  }
+
+  button.graph-filter-item {
+    justify-content: flex-start;
+    gap: var(--space-2);
+    height: 28px;
+    padding: 0 var(--space-2);
+    border-color: transparent;
+    border-radius: var(--radius-xs);
+    background-color: transparent;
+    color: var(--text-primary);
+    font-weight: normal;
+
+    &:hover:not(:disabled),
+    &:focus-visible {
+      background-color: var(--hover);
+    }
+
+    &:disabled:hover {
+      background-color: transparent;
+      border-color: transparent;
+    }
+  }
+
+  span.graph-filter-check {
+    flex: none;
+    display: flex;
+    width: 14px;
+    color: var(--accent-text);
+  }
+
+  div.graph-filter-separator {
+    height: 1px;
+    margin: var(--space-1) 0;
+    background-color: var(--border-subtle);
+  }
+}

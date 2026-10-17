@@ -11,7 +11,7 @@ export interface ReferenceItemProps {
   reference: Reference;
   selected: boolean;
   focus: string[];
-  // The focus leaves the history of the reference out of the graph
+  // The focus or the filters leave the history of the reference out of the graph
   hidden: boolean;
   onOpenInputDialog: InputDialogHandler;
   onFocusChange: FocusChangeHandler;
@@ -60,7 +60,8 @@ export class ReferenceItem extends React.PureComponent<ReferenceItemProps, {}> {
     if (!this.props.hidden) {
       return name;
     }
-    return full ? `${name} is hidden by the focus` : `${name} is hidden by the focus, click to show its history`;
+    const by = this.props.focus.length > 0 ? 'the focus' : 'the filters';
+    return full ? `${name} is hidden by ${by}` : `${name} is hidden by ${by}, click to show its history`;
   }
 
   render() {

@@ -15,6 +15,7 @@ import { FocusDialogHandler } from './focus-dialog';
 import { RepoWrapper, PatchType, RepoState, Commit, Patch } from '../helpers/repo-wrapper';
 import { CancellablePromise, makeCancellable } from '../helpers/make-cancellable';
 import { loadFocus, saveFocus } from '../helpers/branch-focus';
+import { GraphFilters, loadFilters, saveFilters } from '../helpers/graph-filters';
 
 export interface RepoDashboardProps {
   repo: RepoWrapper;
@@ -34,6 +35,8 @@ export interface RepoDashboardState {
   patchType: PatchType;
   // Full names of the references whose history the graph shows, everything when it is empty
   focus: string[];
+  // Kinds of references left out of the graph while it is not focused
+  filters: GraphFilters;
 }
 
 export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoDashboardState> {
@@ -51,6 +54,8 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
   referencesWatcher: chokidar.FSWatcher;
   // Focus changes whose history is still loading, the last one wins
   focusChanges: number;
+  // Filter changes whose history is still loading, the last one wins
+  filterChanges: number;
 
   constructor(props: RepoDashboardProps) {
     super(props);
@@ -59,6 +64,7 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
     this.rightViewer = React.createRef();
     this.dirtyWorkingDirectory = false;
     this.focusChanges = 0;
+    this.filterChanges = 0;
     this.handleCommitSelect = this.handleCommitSelect.bind(this);
     this.handleIndexSelect = this.handleIndexSelect.bind(this);
     this.handlePatchSelect = this.handlePatchSelect.bind(this);
@@ -66,6 +72,7 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
     this.handleRightPanelResize = this.handleRightPanelResize.bind(this);
     this.handleFocusChange = this.handleFocusChange.bind(this);
     this.openFocusDialog = this.openFocusDialog.bind(this);
+    this.handleFiltersChange = this.handleFiltersChange.bind(this);
     this.state = {
       repoState: this.props.repo.getState(),
       loadingState: LoadingState.NotLoading,
@@ -73,12 +80,14 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
       selectedPatch: null,
       patchType: PatchType.Committed,
       // The repository opens with the focus it had when it was closed
-      focus: loadFocus(this.props.repo.workdir)
+      focus: loadFocus(this.props.repo.workdir),
+      filters: loadFilters(this.props.repo.workdir)
     };
   }
 
   async componentDidMount() {
     this.props.repo.focus = this.state.focus;
+    this.props.repo.filters = this.state.filters;
     this.loadingPromise = makeCancellable(this.props.repo.init());
     try {
       await this.loadingPromise.promise;
@@ -163,6 +172,26 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
     this.setState({
       focus: repo.focus
     });
+    if (this.graphViewer.current) {
+      this.graphViewer.current.updateGraph();
+    }
+    this.unselectRemovedCommit();
+  }
+
+  // Leaves kinds of references out of the graph, they wait while it is focused
+  async handleFiltersChange(filters: GraphFilters) {
+    const repo = this.props.repo;
+    const change = ++this.filterChanges;
+    // The toggles follow at once and the choice is saved at once, like the focus
+    this.setState({
+      filters: filters
+    });
+    saveFilters(repo.workdir, filters);
+    await repo.setFilters(filters);
+    // A newer change is still loading
+    if (change !== this.filterChanges) {
+      return;
+    }
     if (this.graphViewer.current) {
       this.graphViewer.current.updateGraph();
     }
@@ -279,6 +308,11 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
   }
 
   async handleHeadUpdate() {
+    // The current branch filter loads the history of the new head
+    if (this.props.repo.isFiltering() && this.props.repo.filters.currentBranchOnly) {
+      await this.handleReferencesUpdate();
+      return;
+    }
     await this.props.repo.updateHead();
     await this.props.repo.updateGraph();
     if (this.graphViewer.current) {
@@ -353,9 +387,12 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
       <div className='repo-dashboard'>
         <Toolbar repo={this.props.repo}
           selectedCommit={this.state.selectedCommit}
+          filters={this.state.filters}
+          focused={this.state.focus.length > 0}
           onRepoClose={this.props.onRepoClose}
           onCreateBranch={this.props.onCreateBranch}
-          onOpenFocusDialog={this.openFocusDialog} />
+          onOpenFocusDialog={this.openFocusDialog}
+          onFiltersChange={this.handleFiltersChange} />
         <div className='repo-content'>
           {leftViewer}
           <Splitter label='Resize the right panel' onDrag={this.handleRightPanelResize} />

@@ -29,7 +29,7 @@ test('groups the buttons of the toolbar', async () => {
   const groups = toolbar.getByRole('group');
   await expect(groups).toHaveCount(3);
   await expect(groups.nth(0).getByRole('button')).toHaveText(['Fetch', 'Pull', 'Push']);
-  await expect(groups.nth(1).getByRole('button')).toHaveText(['Branch', 'Focus']);
+  await expect(groups.nth(1).getByRole('button')).toHaveText(['Branch', 'Focus', 'Filters']);
   await expect(groups.nth(2).getByRole('button')).toHaveText(['Stash', 'Pop']);
   await expect(toolbar.getByRole('button', { name: 'Close', exact: true })).toBeVisible();
   // Each button has an icon
