@@ -70,6 +70,15 @@ module.exports = {
     {
       name: '@electron-forge/maker-rpm',
       config: {}
+    },
+    {
+      // A single file that runs without installation on most Linux distributions
+      name: '@reforged/maker-appimage',
+      config: {
+        options: {
+          categories: ['Development']
+        }
+      }
     }
   ]
 };

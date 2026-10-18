@@ -50,7 +50,7 @@ npm run package    # package the app for the current platform
 npm run make       # build the installers for the current platform
 ```
 
-`npm run make` builds a zip on every platform, plus a Squirrel installer on Windows, a dmg on macOS and a deb and an rpm package on Linux. On Linux it needs `dpkg` and `fakeroot` for the deb package and `rpmbuild` for the rpm package, for example `sudo apt install dpkg fakeroot rpm` on Debian and Ubuntu, or `sudo dnf install dpkg fakeroot rpm-build` on Fedora. To build only some of them, pass the makers to Electron Forge: `npm run build && npx electron-forge make --targets @electron-forge/maker-zip,@electron-forge/maker-deb`.
+`npm run make` builds a zip on every platform, plus a Squirrel installer on Windows, a dmg on macOS and a deb package, an rpm package and an AppImage on Linux. On Linux it needs `dpkg` and `fakeroot` for the deb package, `rpmbuild` for the rpm package and `mksquashfs` for the AppImage, for example `sudo apt install dpkg fakeroot rpm squashfs-tools` on Debian and Ubuntu, or `sudo dnf install dpkg fakeroot rpm-build squashfs-tools` on Fedora. To build only some of them, pass the makers to Electron Forge: `npm run build && npx electron-forge make --targets @electron-forge/maker-zip,@electron-forge/maker-deb`.
 
 The stylesheet is written in LESS in `assets/less` and compiled to `assets/css` by `npm run build` (or `npm run build:css` alone). The colors come from the themes in `assets/themes`.
 
@@ -67,11 +67,13 @@ git push -u origin release/1.2.0
 
 The release workflow runs the checks, builds the installers and publishes them in a GitHub release tagged `v1.2.0`. The version is taken from the branch name, `package.json` does not need to be bumped. A version with a suffix, such as `1.2.0-beta.1`, is published as a pre-release.
 
-| OS | Architectures | Packages |
-|---|---|---|
-| Linux | x64, arm64 | `.deb`, `.rpm`, `.zip` |
-| Windows | x64, arm64 | `Setup.exe`, `.zip` |
-| macOS | arm64, x64 | `.dmg`, `.zip` |
+| OS | Architectures | Without installation | Installers |
+|---|---|---|---|
+| Linux | x64, arm64 | `.AppImage`, `-portable.zip` | `.deb`, `.rpm` |
+| Windows | x64, arm64 | `-portable.zip` | `Setup.exe` |
+| macOS | arm64, x64 | `-portable.zip` | `.dmg` |
+
+The portable zips contain the app ready to run: unzip and start `gitadmin.exe`, `Gitadmin.app` or `gitadmin`. The AppImage is a single file to make executable (`chmod +x`) and run.
 
 The packages are not signed yet, so macOS and Windows warn about them the first time they are opened.
 

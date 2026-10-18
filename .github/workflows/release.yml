@@ -89,9 +89,9 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-      - name: Install rpmbuild
+      - name: Install rpmbuild and mksquashfs
         if: matrix.platform == 'linux'
-        run: sudo apt-get update && sudo apt-get install -y rpm
+        run: sudo apt-get update && sudo apt-get install -y rpm squashfs-tools
       # Installed for the runner, since the dmg maker loads native modules at build time
       - run: npm ci
       - name: Download the git of the target architecture
@@ -103,10 +103,13 @@ jobs:
       - run: npm run make -- --arch=${{ matrix.arch }}
       - name: Collect the packages
         env:
+          PLATFORM: ${{ matrix.platform }}
           ARCH: ${{ matrix.arch }}
         run: |
           mkdir release
-          find out/make -type f \( -name '*.zip' -o -name '*.deb' -o -name '*.rpm' -o -name '*.dmg' \) -exec cp {} release/ \;
+          find out/make -type f \( -name '*.deb' -o -name '*.rpm' -o -name '*.dmg' -o -name '*.AppImage' \) -exec cp {} release/ \;
+          # The zip is the app ready to run, without installation
+          find out/make -type f -name '*.zip' -exec cp {} "release/Gitadmin-$VERSION-$PLATFORM-$ARCH-portable.zip" \;
           # The Squirrel installer has the same name for every architecture
           find out/make -type f -name '*Setup.exe' -exec cp {} "release/Gitadmin-$VERSION-win32-$ARCH-Setup.exe" \;
           ls -l release
@@ -136,12 +139,27 @@ jobs:
           PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
         run: |
           ls -l release
+          notes=$(cat <<'EOF'
+          ## Downloads
+
+          **Without installation**
+          - Windows: `*-win32-x64-portable.zip` or `*-win32-arm64-portable.zip`, unzip and run `gitadmin.exe`
+          - macOS: `*-darwin-arm64-portable.zip` for Apple Silicon or `*-darwin-x64-portable.zip` for Intel, unzip and open `Gitadmin.app`
+          - Linux: `*.AppImage`, make it executable with `chmod +x` and run it, or `*-linux-*-portable.zip`, unzip and run `gitadmin`
+
+          **Installers**
+          - Windows: `*-Setup.exe`
+          - macOS: `*.dmg`
+          - Linux: `*.deb` for Debian and Ubuntu, `*.rpm` for Fedora and openSUSE
+          EOF
+          )
           if gh release view "$TAG" > /dev/null 2>&1; then
             gh release upload "$TAG" release/* --clobber
           else
             gh release create "$TAG" release/* \
               --target "$GITHUB_SHA" \
               --title "Gitadmin $TAG" \
+              --notes "$notes" \
               --generate-notes \
               --prerelease="$PRERELEASE"
           fi
