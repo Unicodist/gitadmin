@@ -193,6 +193,34 @@ test('initializes a repository in the folder that the dialog shows', async () =>
   expect(fs.existsSync(Path.join(location, 'difference-engine', '.git'))).toBe(true);
 });
 
+test('starts the directory dialog where the last directory was picked', async () => {
+  // Answers the directory dialogs with the repository and records where they start
+  await app.evaluate(({ ipcMain }, workdir) => {
+    (globalThis as any).dialogStarts = [];
+    ipcMain.removeHandler('show-open-dialog');
+    ipcMain.handle('show-open-dialog', (_event, options) => {
+      (globalThis as any).dialogStarts.push(options.defaultPath ?? null);
+      return { canceled: false, filePaths: [workdir] };
+    });
+  }, repo.workdir);
+  const getDialogStarts = () => app.evaluate(() => (globalThis as any).dialogStarts);
+
+  await sendMenuCommand(app, 'open-repo');
+  await expect(page.locator('.repo-title h1')).toHaveText(Path.basename(repo.workdir));
+  // The system chooses the first time
+  expect(await getDialogStarts()).toEqual([null]);
+
+  await sendMenuCommand(app, 'init-repo');
+  const dialog = page.getByRole('dialog', { name: 'Initialize a repo' });
+  await dialog.getByRole('button', { name: 'Browse' }).click();
+  await expect(dialog.getByLabel('Location')).toHaveValue(repo.workdir);
+  // Then the dialog shows the folder of the repository picked last time
+  expect(await getDialogStarts()).toEqual([null, Path.dirname(repo.workdir)]);
+  const userData = await app.evaluate(({ app }) => app.getPath('userData'));
+  expect(JSON.parse(fs.readFileSync(Path.join(userData, 'Settings')).toString()).gitadmin.recentDirectory)
+    .toBe(Path.dirname(repo.workdir));
+});
+
 test('renames a branch with the input dialog', async () => {
   await openRecentRepo(page, repo);
   await pickContextMenuItem(app, 'Rename notes');

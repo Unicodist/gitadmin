@@ -1,6 +1,7 @@
 import { ipcRenderer } from 'electron';
 import { SerializedMenuItem, ThemeSource } from '../../shared/ipc';
 import { CredentialAnswer, CredentialRequest } from '../../shared/askpass';
+import { getDialogStartDirectory, rememberPickedDirectory } from './recent-directory';
 
 export interface MenuItem {
   label?: string;
@@ -50,12 +51,18 @@ export function copyToClipboard(text: string) {
   return navigator.clipboard.writeText(text);
 }
 
-// Asks the user to pick a directory, returns null if the dialog is cancelled
+// Asks the user to pick a directory, returns null if the dialog is cancelled.
+// The dialog starts where the user picked a directory last time.
 export async function showOpenDirectoryDialog() {
   const result: Electron.OpenDialogReturnValue = await ipcRenderer.invoke('show-open-dialog', {
+    defaultPath: getDialogStartDirectory(),
     properties: ['openDirectory', 'createDirectory']
   });
-  return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0];
+  if (result.canceled || result.filePaths.length === 0) {
+    return null;
+  }
+  rememberPickedDirectory(result.filePaths[0]);
+  return result.filePaths[0];
 }
 
 // Sets the color scheme of the native parts of the window (menus, scrollbars, title bar),
