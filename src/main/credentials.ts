@@ -59,9 +59,10 @@ export async function startCredentialService() {
     event.returnValue = { session, env: server.environment(session) };
   });
 
-  ipcMain.handle('end-credential-session', (_event, session: string) => {
+  // rejected: the server refused the HTTPS credentials
+  ipcMain.handle('end-credential-session', (_event, session: string, rejected: boolean) => {
     sessions.delete(session);
-    return broker.endSession(session);
+    return broker.endSession(session, !!rejected);
   });
 
   ipcMain.on('credential-response', (_event, id: number, answer: CredentialAnswer | null) => {

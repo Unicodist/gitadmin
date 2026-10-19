@@ -154,3 +154,21 @@ test('lists the SSH keys and saves the key of a host', async () => {
   await expect(hosts).toHaveCount(0);
   expect(settings().sshHostKeys).toEqual({});
 });
+
+test('saves the HTTPS credentials with Git Credential Manager until it is turned off', async () => {
+  await launch();
+  await sendMenuCommand(launched.app, 'preferences');
+  const preferences = page.getByRole('dialog', { name: 'Preferences' });
+  await preferences.getByRole('tab', { name: 'Authentication' }).click();
+  const panel = preferences.getByRole('tabpanel', { name: 'Authentication' });
+  // The git of dugite comes with it on Linux x64
+  const checkbox = panel.getByLabel('Save HTTPS credentials with Git Credential Manager');
+  await expect(checkbox).toBeChecked();
+  await expect(checkbox).toHaveAccessibleDescription(/keychain of the system/);
+  await checkbox.uncheck();
+  const userData = await launched.app.evaluate(({ app }) => app.getPath('userData'));
+  const settings = () => JSON.parse(fs.readFileSync(Path.join(userData, 'Settings')).toString()).gitadmin;
+  expect(settings().credentialManager).toBe(false);
+  await checkbox.check();
+  expect(settings().credentialManager).toBe(true);
+});

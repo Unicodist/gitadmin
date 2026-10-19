@@ -45,7 +45,8 @@ describe('AskpassServer', () => {
     assert.deepEqual(requests[requests.length - 1], {
       session: 'session-1',
       prompt: 'Enter passphrase for key \'/keys/id\': ',
-      promptKind: 'confirm'
+      promptKind: 'confirm',
+      parent: ''
     });
   });
 
@@ -69,6 +70,8 @@ describe('AskpassServer', () => {
           (error, stdout) => error ? reject(error) : resolve(stdout));
       });
       assert.equal(result, 'answer to Password:\n');
+      // The process that runs the launcher, like ssh
+      assert.equal(requests[requests.length - 1].parent, String(process.pid));
     });
 
   it('removes its files when it is closed', async () => {

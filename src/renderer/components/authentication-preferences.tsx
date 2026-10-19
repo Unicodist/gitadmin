@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { Field, Settings } from '../../shared/settings';
-import { getSshHostKeys } from '../helpers/git/network';
+import { getSshHostKeys, hasCredentialManager, isCredentialManagerBuiltIn, isCredentialManagerEnabled } from '../helpers/git/network';
 import { forgetCredentials, getRememberedCredentialCount } from '../helpers/native';
 import { AgentStatus, SshKey, getAgentStatus, listSshKeys } from '../helpers/ssh-keys';
 import { Icon } from './icon';
@@ -13,6 +13,7 @@ export class AuthenticationPreferencesState {
   newHost: string;
   newKey: string;
   rememberedCount: number;
+  credentialManager: boolean;
 }
 
 function getKeyLabel(key: SshKey) {
@@ -20,7 +21,8 @@ function getKeyLabel(key: SshKey) {
   return details.length > 0 ? `${key.name} (${details.join(', ')})` : key.name;
 }
 
-// SSH section of the preferences: the agent, the keys of ~/.ssh and the key of each host
+// Authentication section of the preferences: the agent, the keys of ~/.ssh, the key of each host and
+// where the HTTPS credentials are saved
 export class AuthenticationPreferences extends React.PureComponent<{}, AuthenticationPreferencesState> {
   unmounted: boolean;
 
@@ -33,13 +35,15 @@ export class AuthenticationPreferences extends React.PureComponent<{}, Authentic
       hostKeys: getSshHostKeys(),
       newHost: '',
       newKey: keys.length > 0 ? keys[0].path : '',
-      rememberedCount: 0
+      rememberedCount: 0,
+      credentialManager: isCredentialManagerEnabled()
     };
     this.unmounted = false;
     this.handleNewHostChange = this.handleNewHostChange.bind(this);
     this.handleNewKeyChange = this.handleNewKeyChange.bind(this);
     this.handleAddHostKey = this.handleAddHostKey.bind(this);
     this.handleForgetClick = this.handleForgetClick.bind(this);
+    this.handleCredentialManagerChange = this.handleCredentialManagerChange.bind(this);
   }
 
   componentDidMount() {
@@ -83,6 +87,11 @@ export class AuthenticationPreferences extends React.PureComponent<{}, Authentic
   saveHostKeys(hostKeys: Record<string, string>) {
     this.setState({hostKeys: hostKeys});
     Settings.set(Field.SshHostKeys, hostKeys);
+  }
+
+  handleCredentialManagerChange(event: React.ChangeEvent<HTMLInputElement>) {
+    this.setState({credentialManager: event.target.checked});
+    Settings.set(Field.CredentialManager, event.target.checked);
   }
 
   async handleForgetClick() {
@@ -181,6 +190,38 @@ export class AuthenticationPreferences extends React.PureComponent<{}, Authentic
     );
   }
 
+  renderCredentialManager() {
+    const builtIn = isCredentialManagerBuiltIn();
+    const available = hasCredentialManager();
+    let description: string;
+    if (!available) {
+      description = 'Git Credential Manager is not available on this system. Gitadmin asks for the username and the ' +
+        'token of an HTTPS remote when they are needed.';
+    } else if (builtIn) {
+      description = 'Git for Windows always uses Git Credential Manager. It saves the username and the token of the ' +
+        'HTTPS remotes in the Windows Credential Manager, and signs in to GitHub, GitLab, Bitbucket and Azure DevOps ' +
+        'in the browser.';
+    } else {
+      description = 'Saves the username and the token of the HTTPS remotes in the keychain of the system, and signs in ' +
+        'to GitHub, GitLab, Bitbucket and Azure DevOps in the browser. Without it, Gitadmin asks for them and can ' +
+        'remember them until it quits.';
+    }
+    return (
+      <>
+        <div className='check-field'>
+          <input type='checkbox'
+            id='preferences-credential-manager'
+            aria-describedby='preferences-credential-manager-description'
+            checked={available && (builtIn || this.state.credentialManager)}
+            disabled={!available || builtIn}
+            onChange={this.handleCredentialManagerChange} />
+          <label htmlFor='preferences-credential-manager'>Save HTTPS credentials with Git Credential Manager</label>
+        </div>
+        <p className='preferences-text' id='preferences-credential-manager-description'>{description}</p>
+      </>
+    );
+  }
+
   render() {
     const count = this.state.rememberedCount;
     return (
@@ -194,6 +235,8 @@ export class AuthenticationPreferences extends React.PureComponent<{}, Authentic
           your SSH configuration.
         </p>
         {this.renderHostKeys()}
+        <h4>HTTPS remotes</h4>
+        {this.renderCredentialManager()}
         <h4>Remembered passwords</h4>
         <div className='preferences-row'>
           <p className='preferences-text' id='preferences-remembered'>
