@@ -11,6 +11,8 @@ export enum Field {
   Name = 'name',
   Email = 'email',
   RecentlyOpened = 'recentlyOpened',
+  // Folder where the directory dialogs start, the parent of the directory picked last time
+  RecentDirectory = 'recentDirectory',
   Theme = 'theme',
   FontSize = 'fontSize',
   // Focused references of each repository, by the path of its working directory
