@@ -340,6 +340,30 @@ describe('focused history', () => {
     assert.deepEqual(labels.map((label) => label.text), ['feature, topic forked']);
   });
 
+  it('counts the commits ahead and behind from the loaded history, like git', async () => {
+    await createBranches();
+    await repo.git('checkout', '--quiet', '-b', 'topic', 'feature~1');
+    await repo.commit('T');
+    await repo.git('merge', '--quiet', '--no-edit', 'main');
+    await repo.git('checkout', '--quiet', 'main');
+    await repo.git('merge', '--quiet', '--no-edit', 'feature');
+    const focus = [MAIN, FEATURE, 'refs/heads/topic'];
+    const { wrapper } = await load(focus);
+    const ran: string[] = [];
+    const git = wrapper.git.bind(wrapper);
+    wrapper.git = (args, options) => {
+      ran.push(args[0]);
+      return git(args, options);
+    };
+    const relations = (await wrapper.getBranchRelations(focus))!;
+    // One merge base for all the references and one per reference, nothing per pair
+    assert.deepEqual(ran, ['merge-base', 'merge-base', 'merge-base', 'merge-base']);
+    for (const comparison of relations.comparisons) {
+      const [ahead, behind] = await wrapper.compareCommits(comparison.left, comparison.right);
+      assert.deepEqual([comparison.ahead, comparison.behind], [ahead, behind]);
+    }
+  });
+
   it('does not fork a reference that the others contain', async () => {
     await repo.commit('A');
     await repo.git('branch', 'old');

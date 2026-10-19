@@ -8,7 +8,8 @@ import { arePatchesEqual, arePatchesSimilar } from '../src/renderer/helpers/patc
 import { getMergeMessage, removeReferencePrefix, shortenSha } from '../src/renderer/helpers/repo-wrapper';
 import { Patch, PatchStatus } from '../src/renderer/helpers/git/model';
 import { Field, Settings } from '../src/shared/settings';
-import { NodeType } from '../src/renderer/helpers/commit-graph';
+import { CommitGraph, NodeType } from '../src/renderer/helpers/commit-graph';
+import type { RepoWrapper } from '../src/renderer/helpers/repo-wrapper';
 import { TestRepo } from './helpers';
 
 describe('findConflictHunks', () => {
@@ -134,6 +135,72 @@ describe('CommitGraph', () => {
       assert.equal(wrapper.graph.edges.count, 3);
     } finally {
       repo.remove();
+    }
+  });
+
+  // History without a head, given as the parents of each commit, children first: commit k is c<k>
+  function fakeRepo(parentsList: number[][]) {
+    const shas = parentsList.map((_parents, k) => `c${k}`);
+    const parents = new Map(parentsList.map((list, k) => [shas[k], list.map((p) => shas[p])]));
+    const children = new Map(shas.map((sha) => [sha, [] as string[]]));
+    parentsList.forEach((list, k) => list.forEach((p) => children.get(shas[p])!.push(shas[k])));
+    return {
+      commits: shas.map((sha) => ({ sha: () => sha })),
+      parents,
+      children,
+      shaToIndex: new Map(shas.map((sha, k) => [sha, k])),
+      stashes: new Map(),
+      headCommit: null,
+      isHeadInGraph: () => false
+    } as unknown as RepoWrapper;
+  }
+
+  // A merge edge runs down the lane of the parent from the row of the merge, no other commit is on its way
+  function assertMergeEdgesAreFree(repo: RepoWrapper, graph: CommitGraph) {
+    const rows = new Map<string, string>();
+    for (const [sha, [i, j]] of graph.positions) {
+      rows.set(`${i} ${j}`, sha);
+    }
+    for (const [sha, [i0]] of graph.positions) {
+      for (const parentSha of repo.parents.get(sha)!.slice(1)) {
+        const [i1, j1] = graph.positions.get(parentSha)!;
+        for (let i = i0 + 1; i < i1; ++i) {
+          assert.equal(rows.get(`${i} ${j1}`), undefined, `the merge ${sha} -> ${parentSha} crosses a commit at row ${i}`);
+        }
+      }
+    }
+  }
+
+  it('keeps the lane of a merged commit free from its highest merge', () => {
+    // c5 is merged by c1 and c4, its lane must stay free from the row of c1, where c2 still is
+    const repo = fakeRepo([[6], [3, 5], [5, 7], [7, 4], [7, 5], [7, 6], [7], []]);
+    const graph = new CommitGraph();
+    graph.computePositions(repo);
+    assert.deepEqual([...graph.positions.values()].map(([, j]) => j), [0, 1, 2, 1, 3, 4, 0, 5]);
+    assertMergeEdgesAreFree(repo, graph);
+  });
+
+  it('never draws a merge over another commit', () => {
+    let seed = 1;
+    const random = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+    for (let t = 0; t < 2000; ++t) {
+      const n = 4 + Math.floor(random() * 12);
+      const parentsList: number[][] = [];
+      for (let k = 0; k < n; ++k) {
+        const count = Math.min(n - k - 1, random() < 0.35 ? 2 : random() < 0.9 ? 1 : 0);
+        const list: number[] = [];
+        while (list.length < count) {
+          const p = k + 1 + Math.floor(random() * (n - k - 1));
+          if (!list.includes(p)) {
+            list.push(p);
+          }
+        }
+        parentsList.push(list);
+      }
+      const repo = fakeRepo(parentsList);
+      const graph = new CommitGraph();
+      graph.computePositions(repo);
+      assertMergeEdgesAreFree(repo, graph);
     }
   });
 });

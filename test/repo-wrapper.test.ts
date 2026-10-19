@@ -155,6 +155,66 @@ describe('history', () => {
     assert.equal(wrapper.children.get(wrapper.headCommit!.sha())!.length, 0);
   });
 
+  it('does nothing more when nothing moved', async () => {
+    await repo.commit('A');
+    await repo.commit('B');
+    const { wrapper } = await load();
+    const ran: string[] = [];
+    const git = wrapper.git.bind(wrapper);
+    wrapper.git = (args, options) => {
+      ran.push(args[0]);
+      return git(args, options);
+    };
+    assert.equal(await wrapper.requestUpdateCommits(), false);
+    // The references and the stashes, the head is read from its file
+    assert.deepEqual(ran.sort(), ['for-each-ref', 'stash']);
+    const graph = wrapper.graph.positions;
+    await repo.commit('C');
+    ran.length = 0;
+    assert.equal(await wrapper.requestUpdateCommits(), true);
+    assert.deepEqual(ran.sort(), ['for-each-ref', 'log', 'stash']);
+    // The head and the graph follow
+    assert.equal(wrapper.headCommit!.summary(), 'C');
+    assert.equal(wrapper.graph.positions, graph);
+    assert.deepEqual([...graph.keys()], wrapper.commits.map((commit) => commit.sha()));
+  });
+
+  it('shares an update that has not started yet', async () => {
+    await repo.commit('A');
+    const { wrapper } = await load();
+    let updates = 0;
+    const updateCommits = wrapper.updateCommits.bind(wrapper);
+    wrapper.updateCommits = (...args) => {
+      ++updates;
+      return updateCommits(...args);
+    };
+    await repo.commit('B');
+    const first = wrapper.requestUpdateCommits();
+    const second = wrapper.requestUpdateCommits();
+    assert.equal(first, second);
+    assert.equal(await second, true);
+    assert.equal(updates, 1);
+    // A new request once it has started is a new update
+    assert.equal(await wrapper.requestUpdateCommits(), false);
+    assert.equal(updates, 2);
+  });
+
+  it('reads the head of a branch without commits, a branch and a detached head', async () => {
+    const { wrapper } = await load();
+    assert.equal(wrapper.headName, 'refs/heads/main');
+    assert.equal(wrapper.headSha, null);
+    const sha = await repo.commit('A');
+    await wrapper.requestUpdateCommits();
+    assert.equal(wrapper.headName, 'refs/heads/main');
+    assert.equal(wrapper.headSha, sha);
+    assert.equal(wrapper.head!.name(), 'refs/heads/main');
+    await repo.git('checkout', '--quiet', '--detach');
+    await wrapper.requestUpdateCommits();
+    assert.equal(wrapper.headName, null);
+    assert.equal(wrapper.headSha, sha);
+    assert.equal(wrapper.head, null);
+  });
+
   it('shows a detached head that no reference points to', async () => {
     await repo.commit('A');
     await repo.git('checkout', '--quiet', '--detach');

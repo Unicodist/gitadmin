@@ -17,6 +17,7 @@ import { RepoWrapper, PatchType, RepoState, Commit, Patch } from '../helpers/rep
 import { CancellablePromise, makeCancellable } from '../helpers/make-cancellable';
 import { loadFocus, saveFocus } from '../helpers/branch-focus';
 import { GraphView, areFiltersEqual, loadGraphView, saveGraphView } from '../helpers/graph-filters';
+import { Changes, UpdateScheduler } from '../helpers/update-scheduler';
 
 export interface RepoDashboardProps {
   repo: RepoWrapper;
@@ -55,10 +56,10 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
   rightViewer: React.RefObject<CommitViewer | IndexViewer | BranchSummaryViewer | null>;
   // Watches
   repositoryWatcher: fs.FSWatcher;
-  dirtyWorkingDirectory: boolean;
   workingDirectoryWatcher: chokidar.FSWatcher;
-  workingDirectoryTimer: NodeJS.Timeout;
   referencesWatcher: chokidar.FSWatcher;
+  // Handles together the changes that the watchers see
+  updates: UpdateScheduler;
   // Focus changes whose history is still loading, the last one wins
   focusChanges: number;
   // Same for the filters
@@ -69,7 +70,7 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
     this.graphShrunk = false;
     this.graphViewer = React.createRef();
     this.rightViewer = React.createRef();
-    this.dirtyWorkingDirectory = false;
+    this.updates = new UpdateScheduler((changes) => this.handleUpdate(changes), () => this.props.repo.isBusy());
     this.focusChanges = 0;
     this.filterChanges = 0;
     this.handleCommitSelect = this.handleCommitSelect.bind(this);
@@ -310,18 +311,15 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
 
   setWatchers() {
     const path = this.props.repo.path;
-    // Watch index and head
+    // Watch index and head, the other files of the repository tell its state
     // fs.watch seems sufficient for that, I should try with chokidar
-    this.repositoryWatcher = fs.watch(path, async (_event, filename) => {
-      this.handleStateUpdate();
+    this.repositoryWatcher = fs.watch(path, (_event, filename) => {
       if (filename === 'index') {
-        this.handleIndexUpdate();
-      } else if (filename === 'packed-refs') {
-        await this.handleReferencesUpdate();
-        this.handleIndexUpdate();
-      } else if (filename === 'HEAD') {
-        await this.handleHeadUpdate();
-        this.handleIndexUpdate();
+        this.updates.schedule(false, true);
+      } else if (filename === 'packed-refs' || filename === 'HEAD') {
+        this.updates.schedule(true, true);
+      } else {
+        this.updates.schedule(false, false);
       }
     });
 
@@ -332,19 +330,12 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
       ignored: [/(.*\.git(\/.*|$))/, (path: string) => this.props.repo.isIgnored(Path.relative(wdPath, path))],
       followSymlinks: false,
     });
-    this.workingDirectoryWatcher.on('all', async (_event: string, path: string) => {
+    this.workingDirectoryWatcher.on('all', (_event: string, path: string) => {
       if (path.endsWith('.gitignore')) {
         this.props.repo.updateIgnore();
       }
-      this.dirtyWorkingDirectory = true;
+      this.updates.schedule(false, true);
     });
-    // To prevent from updating too often
-    this.workingDirectoryTimer = setInterval(async () => {
-      if (this.dirtyWorkingDirectory) {
-        this.handleIndexUpdate();
-        this.dirtyWorkingDirectory = false;
-      }
-    }, 200);
 
     // Watch references
     this.referencesWatcher = chokidar.watch(Path.join(path, 'refs'), {
@@ -352,11 +343,12 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
       ignored: /.*\.lock$/,
       followSymlinks: false
     });
-    this.referencesWatcher.on('all', async () => {
-      await this.handleReferencesUpdate();
-      this.handleStateUpdate();
-      this.handleIndexUpdate();
+    this.referencesWatcher.on('all', () => {
+      this.updates.schedule(true, true);
     });
+
+    // The commands that change many references hold the updates until they finish
+    this.props.repo.onIdle = () => this.updates.resume();
   }
 
   removeWatchers() {
@@ -366,11 +358,20 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
     if (this.workingDirectoryWatcher) {
       this.workingDirectoryWatcher.close();
     }
-    if (this.workingDirectoryTimer) {
-      clearInterval(this.workingDirectoryTimer);
-    }
     if (this.referencesWatcher) {
       this.referencesWatcher.close();
+    }
+    this.updates.stop();
+    this.props.repo.onIdle = () => undefined;
+  }
+
+  async handleUpdate(changes: Changes) {
+    this.handleStateUpdate();
+    if (changes.references) {
+      await this.handleReferencesUpdate();
+    }
+    if (changes.index) {
+      await this.handleIndexUpdate();
     }
   }
 
@@ -385,25 +386,13 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
     this.updateIndexViewer();
   }
 
-  async handleHeadUpdate() {
-    // The history of the current branch is loaded again when another branch is checked out
-    if (this.props.repo.isFiltered() && this.props.repo.filters.currentBranchOnly) {
-      await this.handleReferencesUpdate();
+  // The head is read with the references, the lists are only drawn again when something moved
+  async handleReferencesUpdate() {
+    const changed = await this.props.repo.requestUpdateCommits();
+    this.syncFocus();
+    if (!changed) {
       return;
     }
-    await this.props.repo.updateHead();
-    await this.props.repo.updateGraph();
-    if (this.graphViewer.current) {
-      this.graphViewer.current.updateGraph();
-    }
-  }
-
-  async handleReferencesUpdate() {
-    // TODO: update only references that changed
-    await this.props.repo.requestUpdateCommits();
-    await this.props.repo.updateHead();
-    await this.props.repo.updateGraph();
-    this.syncFocus();
     if (this.graphViewer.current) {
       this.graphViewer.current.updateGraph();
     }
