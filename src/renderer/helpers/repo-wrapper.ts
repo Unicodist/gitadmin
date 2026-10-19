@@ -138,8 +138,13 @@ export class RepoWrapper {
   // Colors and merges of the focused history, null when fewer than two references are focused
   focusLayout: FocusLayout | null;
   onNotification: (message: string, type: NotificationType) => void;
+  // Called when the last of the commands that hold the updates finishes
+  onIdle: () => void;
   // Internals
   updateCommitsPromise: Promise<void>; // Used to queue commit updates
+  pendingUpdate: Promise<boolean> | null; // Update of the commits that is queued and not started yet
+  historyKey: string; // References, stashes and head when the commits were last updated
+  busyCommands: number; // Commands running that change many references at once
   ig: Ignore;
   headName: string | null;
   headSha: string | null;
@@ -169,7 +174,11 @@ export class RepoWrapper {
     this.relations = null;
     this.focusLayout = null;
     this.onNotification = onNotification;
+    this.onIdle = () => undefined;
     this.updateCommitsPromise = Promise.resolve();
+    this.pendingUpdate = null;
+    this.historyKey = '';
+    this.busyCommands = 0;
     this.ig = ignore();
     this.headName = null;
     this.headSha = null;
@@ -183,23 +192,57 @@ export class RepoWrapper {
   }
 
   async init() {
-    await this.updateCommits();
-    await this.updateHead();
-    await this.updateGraph();
-    await this.updateIndex();
+    // The index does not depend on the history
+    await Promise.all([this.updateCommits(), this.updateIndex()]);
     this.updateIgnore();
   }
 
-  async requestUpdateCommits() {
-    // Start an update only if the previous ones have finished
-    this.updateCommitsPromise = this.updateCommitsPromise.then(() => this.updateCommits());
-    await this.updateCommitsPromise;
+  // Runs the update after the ones already queued
+  queueUpdate<T>(update: () => Promise<T>) {
+    const result = this.updateCommitsPromise.then(update);
+    // A failed update does not prevent the next ones
+    this.updateCommitsPromise = result.then(() => undefined, () => undefined);
+    return result;
   }
 
-  // Loads the new commits, or all of them again when the focus or the filters change
+  // Loads the new commits, true if the history or the head changed. An update that is queued and not started
+  // yet will see the same changes, it is shared instead of running twice.
+  requestUpdateCommits() {
+    if (!this.pendingUpdate) {
+      this.pendingUpdate = this.queueUpdate(() => {
+        this.pendingUpdate = null;
+        return this.updateCommits();
+      });
+    }
+    return this.pendingUpdate;
+  }
+
+  // True while a command that changes many references at once runs, the updates wait for it to finish
+  isBusy() {
+    return this.busyCommands > 0;
+  }
+
+  async runBusy<T>(command: () => Promise<T>) {
+    ++this.busyCommands;
+    try {
+      return await command();
+    } finally {
+      if (--this.busyCommands === 0) {
+        this.onIdle();
+      }
+    }
+  }
+
+  // Changes when a reference, a stash or the head moves
+  getHistoryKey() {
+    const references = Array.from(this.references.values(), (reference) => `${reference.name()} ${reference.commitId}`);
+    return [...references, ...this.stashes.keys(), `${this.headName} ${this.headSha}`].join('\n');
+  }
+
+  // Loads the new commits, or all of them again when the focus or the filters change, then the head and the graph.
+  // False if nothing changed.
   async updateCommits(focus?: string[], filters?: GraphFilters) {
-    let referencesToUpdate = await this.updateReferences();
-    let stashesToUpdate = await this.updateStashes();
+    let [referencesToUpdate, stashesToUpdate] = await Promise.all([this.updateReferences(), this.updateStashes()]);
     await this.readHead();
     // A focused reference may have been removed
     const newFocus = pruneFocus(focus || this.focus, this.references);
@@ -208,6 +251,12 @@ export class RepoWrapper {
     // The current branch changes with the head
     const headMoved = !focused && newFilters.currentBranchOnly && this.loadedHeadName !== this.headName;
     const reload = newFocus !== this.focus || !areFiltersEqual(newFilters, this.filters) || headMoved;
+    const historyKey = this.getHistoryKey();
+    if (!reload && historyKey === this.historyKey) {
+      // The references were read again, the head is the new one
+      await this.loadHead();
+      return false;
+    }
     if (reload) {
       referencesToUpdate = [...this.references.values()];
       stashesToUpdate = [...this.stashes.values()];
@@ -229,16 +278,17 @@ export class RepoWrapper {
     this.getParents(newCommits);
     this.removeUnreachableCommits();
     this.sortCommits();
-    if (reload) {
-      // Every commit has a position again before the lists are drawn
-      this.updateGraph();
-    }
-    // Computing the relations runs git for each pair of references, only when they moved
+    await this.loadHead();
+    // Every commit has a position again before the lists are drawn
+    this.updateGraph();
+    this.historyKey = historyKey;
+    // Computing the relations runs git, only when the references moved
     const relationsKey = this.focus.map((name) => `${name} ${this.references.get(name)!.commitId}`).join('\n');
     if (relationsKey !== this.relationsKey) {
       this.relations = await this.getBranchRelations(this.focus);
       this.relationsKey = relationsKey;
     }
+    return true;
   }
 
   isFocused() {
@@ -257,19 +307,13 @@ export class RepoWrapper {
 
   // Shows only part of the history while nothing is focused
   async setFilters(filters: GraphFilters) {
-    this.updateCommitsPromise = this.updateCommitsPromise.then(() => this.updateCommits(undefined, { ...filters }));
-    await this.updateCommitsPromise;
-    await this.updateHead();
-    this.updateGraph();
+    await this.queueUpdate(() => this.updateCommits(undefined, { ...filters }));
   }
 
   // Shows only the history of these references, or of everything if the list is empty
   async setFocus(focus: string[]) {
     // Queued like the other updates, a new list is always different from the current one
-    this.updateCommitsPromise = this.updateCommitsPromise.then(() => this.updateCommits([...new Set(focus)]));
-    await this.updateCommitsPromise;
-    await this.updateHead();
-    this.updateGraph();
+    await this.queueUpdate(() => this.updateCommits([...new Set(focus)]));
   }
 
   clearCommits() {
@@ -405,26 +449,29 @@ export class RepoWrapper {
         }
       }
     }
-    const commitsToRemove = this.commits.filter((commit) => !alreadyAdded.has(commit.sha()));
-    for (const commit of commitsToRemove) {
-      this.removeCommit(commit);
+    const unreachable = this.commits.filter((commit) => !alreadyAdded.has(commit.sha()));
+    if (unreachable.length > 0) {
+      this.removeCommits(new Set(unreachable.map((commit) => commit.sha())));
     }
   }
 
-  removeCommit(commit: Commit) {
-    const commitSha = commit.sha();
-    this.commits.splice(this.commits.indexOf(this.shaToCommit.get(commitSha)!), 1); // TODO: batch removal or update shaToIndex before removal
-    this.shaToCommit.delete(commitSha);
-    for (const parentSha of this.parents.get(commitSha)!) {
-      const parentChildren = this.children.get(parentSha)!;
-      parentChildren.splice(parentChildren.indexOf(commitSha), 1);
+  // Removes the commits in one pass, the children of a removed commit are removed too
+  removeCommits(removed: Set<string>) {
+    this.commits = this.commits.filter((commit) => !removed.has(commit.sha()));
+    const keptParents = new Set<string>();
+    for (const commitSha of removed) {
+      for (const parentSha of this.parents.get(commitSha)!) {
+        if (!removed.has(parentSha)) {
+          keptParents.add(parentSha);
+        }
+      }
+      this.shaToCommit.delete(commitSha);
+      this.parents.delete(commitSha);
+      this.children.delete(commitSha);
     }
-    this.parents.delete(commitSha);
-    for (const childSha of this.children.get(commitSha)!) {
-      const childParents = this.parents.get(childSha)!;
-      childParents.splice(childParents.indexOf(commitSha), 1);
+    for (const parentSha of keptParents) {
+      this.children.set(parentSha, this.children.get(parentSha)!.filter((childSha) => !removed.has(childSha)));
     }
-    this.children.delete(commitSha);
   }
 
   sortCommits() {
@@ -464,18 +511,49 @@ export class RepoWrapper {
     this.shaToIndex = new Map(this.commits.map((commit, i) => [commit.sha(), i] as [string, number]));
   }
 
+  // Reads the name and the commit of the head. The commit of a branch comes from the references, which must be up
+  // to date, git only runs when the head file does not say enough (a branch that has no commit yet, reftables).
   async readHead() {
-    const name = (await this.git(['symbolic-ref', '-q', 'HEAD'], { okExitCodes: [1] })).trim();
-    const sha = (await this.git(['rev-parse', '-q', '--verify', 'HEAD^{commit}'], { okExitCodes: [1] })).trim();
-    this.headName = name || null;
-    this.headSha = sha || null;
+    let content = '';
+    try {
+      content = fs.readFileSync(Path.join(this.path, 'HEAD')).toString().trim();
+    } catch (e) {
+      // Read with git below
+    }
+    const symbolic = /^ref: (refs\/.+)$/.exec(content);
+    if (symbolic && symbolic[1] !== 'refs/heads/.invalid' && this.references.has(symbolic[1])) {
+      this.headName = symbolic[1];
+      this.headSha = this.references.get(symbolic[1])!.commitId;
+    } else if (/^[0-9a-f]{40}([0-9a-f]{24})?$/.test(content)) {
+      this.headName = null;
+      this.headSha = content;
+    } else {
+      const [name, sha] = await Promise.all([
+        this.git(['symbolic-ref', '-q', 'HEAD'], { okExitCodes: [1] }),
+        this.git(['rev-parse', '-q', '--verify', 'HEAD^{commit}'], { okExitCodes: [1] })
+      ]);
+      this.headName = name.trim() || null;
+      this.headSha = sha.trim() || null;
+    }
   }
 
   async updateHead() {
     await this.readHead();
+    await this.loadHead();
+  }
+
+  // Head reference and commit from what readHead read
+  async loadHead() {
     this.head = this.headName ? this.references.get(this.headName) || null : null;
     // The focus can leave the head out of the graph, the index still needs its commit
-    this.headCommit = this.headSha ? this.shaToCommit.get(this.headSha) || await this.readCommit(this.headSha) : null;
+    const sha = this.headSha;
+    if (!sha) {
+      this.headCommit = null;
+    } else if (this.shaToCommit.has(sha)) {
+      this.headCommit = this.shaToCommit.get(sha)!;
+    } else if (!this.headCommit || this.headCommit.sha() !== sha) {
+      this.headCommit = await this.readCommit(sha);
+    }
   }
 
   async readCommit(sha: string) {
@@ -499,8 +577,7 @@ export class RepoWrapper {
   }
 
   async updateIndex() {
-    this.stagedPatches = await this.getStagedPatches();
-    this.unstagedPatches = await this.getUnstagedPatches();
+    [this.stagedPatches, this.unstagedPatches] = await Promise.all([this.getStagedPatches(), this.getUnstagedPatches()]);
   }
 
   // Repo creation
@@ -596,12 +673,13 @@ export class RepoWrapper {
   }
 
   async getUnstagedPatches() {
-    const summary = await this.git(['diff', ...SUMMARY_OPTIONS]);
+    const [summary, others] = await Promise.all([
+      this.git(['diff', ...SUMMARY_OPTIONS]),
+      this.git(['ls-files', '--others', '--exclude-standard', '-z'])
+    ]);
     const entries = parseDiffSummary(summary);
     // Untracked files
-    const untracked = (await this.git(['ls-files', '--others', '--exclude-standard', '-z']))
-      .split('\0')
-      .filter((path) => path.length > 0);
+    const untracked = others.split('\0').filter((path) => path.length > 0);
     for (const path of untracked) {
       entries.push({
         status: PatchStatus.Untracked,
@@ -847,20 +925,57 @@ export class RepoWrapper {
         // A reference that the others contain does not fork
         return base !== null && base !== tips[i] ? { reference, sha: base } : null;
       }),
-      mapConcurrently(pairs, async ([i, j]): Promise<BranchComparison> => {
+      this.compareLoadedCommits(tips, pairs) || mapConcurrently(pairs, async ([i, j]) => {
         const [related, [ahead, behind]] = await Promise.all([
           this.getMergeBase([tips[i], tips[j]]).then((base) => base !== null),
           this.compareCommits(tips[i], tips[j])
         ]);
-        return { left: references[i], right: references[j], related, ahead, behind };
+        return { related, ahead, behind };
       })
     ]);
     return {
       references,
       mergeBase,
       forkPoints: forkPoints.filter((forkPoint): forkPoint is ForkPoint => forkPoint !== null),
-      comparisons
+      comparisons: comparisons.map((comparison, k): BranchComparison =>
+        ({ left: references[pairs[k][0]], right: references[pairs[k][1]], ...comparison }))
     };
+  }
+
+  // Compares the pairs of tips like compareCommits does, from the loaded commits instead of running git for each
+  // pair. Null if the history of a tip is not loaded, the focus loads the whole history of its references.
+  compareLoadedCommits(tips: string[], pairs: [number, number][]) {
+    if (tips.length > 30 || tips.some((tip) => !this.shaToCommit.has(tip))) {
+      return null;
+    }
+    // One bit per tip that has the commit, the children come before their parents
+    const masks = new Map<string, number>();
+    tips.forEach((tip, i) => masks.set(tip, (masks.get(tip) || 0) | (1 << i)));
+    for (const commit of this.commits) {
+      const mask = masks.get(commit.sha());
+      if (mask !== undefined) {
+        for (const parentSha of this.parents.get(commit.sha())!) {
+          masks.set(parentSha, (masks.get(parentSha) || 0) | mask);
+        }
+      }
+    }
+    const counts = new Map<number, number>();
+    for (const mask of masks.values()) {
+      counts.set(mask, (counts.get(mask) || 0) + 1);
+    }
+    return pairs.map(([i, j]) => {
+      let related = false;
+      let ahead = 0;
+      let behind = 0;
+      for (const [mask, count] of counts) {
+        const left = (mask & (1 << i)) !== 0;
+        const right = (mask & (1 << j)) !== 0;
+        related = related || (left && right);
+        ahead += left && !right ? count : 0;
+        behind += right && !left ? count : 0;
+      }
+      return { related, ahead, behind };
+    });
   }
 
   // Branch summary
@@ -1072,8 +1187,9 @@ export class RepoWrapper {
     return remotes;
   }
 
+  // A fetch updates many references, the history is updated once at the end
   async fetchAll() {
-    await this.tryRun('Unable to fetch all', async () => {
+    await this.tryRun('Unable to fetch all', () => this.runBusy(async () => {
       const remotes = await this.getRemotes();
       const hostKeys = getSshHostKeys();
       if (new Set(remotes.map((remote) => getSshCommand(remote.url, hostKeys))).size <= 1) {
@@ -1085,7 +1201,7 @@ export class RepoWrapper {
           await runNetworkCommand(remote.url, (env) => this.git(['fetch', '--quiet', remote.name], { env }));
         }
       }
-    });
+    }));
   }
 
   async pull(name: string) {
@@ -1093,14 +1209,14 @@ export class RepoWrapper {
   }
 
   async push() {
-    await this.tryRun('Unable to push', async () => {
+    await this.tryRun('Unable to push', () => this.runBusy(async () => {
       await this.readHead();
       if (!this.headName) {
         throw new Error('HEAD is not on a branch');
       }
       const url = (await this.git(['remote', 'get-url', '--push', 'origin'])).trim();
       await runNetworkCommand(url, (env) => this.git(['push', '--quiet', 'origin', this.headName!], { env }));
-    }, 'Pushed successfully');
+    }), 'Pushed successfully');
   }
 
   // Stash
