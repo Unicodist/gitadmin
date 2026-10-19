@@ -32,7 +32,7 @@ describe('SSH prompts of the network commands', { skip: process.platform === 'wi
         const session = `session-${++nextSession}`;
         return { session, env: server.environment(session) };
       },
-      end: async (session) => broker.endSession(session)
+      end: async (session, rejected) => broker.endSession(session, rejected)
     });
   });
 
@@ -107,6 +107,18 @@ describe('SSH prompts of the network commands', { skip: process.platform === 'wi
     assert.equal(requests.length, 3);
     assert.equal(notifications.length, 1);
     assert.match(notifications[0], /^Unable to fetch all: The server refused your SSH key/);
+  });
+
+  it('asks once when several remotes need the passphrase', async () => {
+    const { wrapper, notifications } = await load();
+    await wrapper.git(['remote', 'add', 'mirror', `fakehost:${remote.workdir}`]);
+    const sha = await remote.commit('Remote change', { 'file.txt': 'b\n' });
+    answers = [{ value: 'secret', remember: false }];
+    await wrapper.fetchAll();
+    assert.deepEqual(notifications, []);
+    assert.equal(requests.length, 1);
+    assert.equal(await remoteHead(wrapper), sha);
+    assert.equal((await wrapper.git(['rev-parse', 'refs/remotes/mirror/main'])).trim(), sha);
   });
 
   it('stops quietly when the prompt is cancelled', async () => {

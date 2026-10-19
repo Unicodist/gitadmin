@@ -22,7 +22,9 @@ export enum Field {
   // View of the graph of each repository, by the path of its working directory: list or canvas, filters, minimap
   GraphView = 'graphView',
   // Private key used for the SSH remotes of each host, by host name, the hosts without one use the agent
-  SshHostKeys = 'sshHostKeys'
+  SshHostKeys = 'sshHostKeys',
+  // Whether Git Credential Manager saves the HTTPS credentials, true when not set
+  CredentialManager = 'credentialManager'
 }
 
 function getUserDataPath(): string {

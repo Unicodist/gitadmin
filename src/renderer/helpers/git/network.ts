@@ -1,5 +1,9 @@
 import { ipcRenderer } from 'electron';
-import { GitError } from './runner';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as Path from 'path';
+import { resolveGitDir, resolveGitExecPath } from 'dugite';
+import { GitError, git } from './runner';
 import { StopReason, quoteShell } from '../../../shared/askpass';
 import { Field, Settings } from '../../../shared/settings';
 
@@ -11,16 +15,17 @@ export interface CredentialSession {
   env: Record<string, string>;
 }
 
-// Opens a session for the prompts of a command, and closes it once the command is done
+// Opens a session for the prompts of a command, and closes it once the command is done.
+// rejected: the server refused the HTTPS credentials, the remembered ones are forgotten.
 export interface CredentialProvider {
   start(): CredentialSession | null;
-  end(session: string): Promise<StopReason | null>;
+  end(session: string, rejected: boolean): Promise<StopReason | null>;
 }
 
 // The main process shows the prompts in the window of the renderer
 const ipcProvider: CredentialProvider = {
   start: () => ipcRenderer.sendSync('start-credential-session'),
-  end: (session) => ipcRenderer.invoke('end-credential-session', session)
+  end: (session, rejected) => ipcRenderer.invoke('end-credential-session', session, rejected)
 };
 
 let provider: CredentialProvider | null = process.type === 'renderer' ? ipcProvider : null;
@@ -65,6 +70,53 @@ export function getSshCommand(url: string, hostKeys = getSshHostKeys()) {
   const host = getSshHost(url);
   const key = host ? hostKeys[host.toLowerCase()] : undefined;
   return key ? `ssh -i ${quoteShell(key)} -o IdentitiesOnly=yes` : null;
+}
+
+// Git Credential Manager comes with the git of dugite, except on Linux arm64
+export function hasCredentialManager() {
+  const path = process.platform === 'win32' ?
+    Path.join(resolveGitDir(), 'mingw64', 'bin', 'git-credential-manager.exe') :
+    Path.join(resolveGitExecPath(), 'git-credential-manager');
+  return fs.existsSync(path);
+}
+
+// Git for Windows always uses Git Credential Manager, its system configuration sets it
+export function isCredentialManagerBuiltIn() {
+  return process.platform === 'win32';
+}
+
+export function isCredentialManagerEnabled() {
+  return Settings.get(Field.CredentialManager, true) !== false;
+}
+
+async function getConfiguredCredentialStore() {
+  try {
+    return (await git(['config', '--get', 'credential.credentialStore'], os.homedir(), { okExitCodes: [1] })).trim();
+  } catch (e) {
+    return '';
+  }
+}
+
+// Variables that add Git Credential Manager to the credential helpers of the user, so that it saves the
+// HTTPS credentials in the keychain of the system and signs in with the browser for the usual hosts.
+// When it has nothing and cannot ask, git asks through GIT_ASKPASS.
+export async function getCredentialManagerEnv(): Promise<Record<string, string>> {
+  if (isCredentialManagerBuiltIn() || !isCredentialManagerEnabled() || !hasCredentialManager()) {
+    return {};
+  }
+  const config: [string, string][] = [['credential.helper', 'manager']];
+  // On Linux, it has no store until one is chosen
+  if (process.platform === 'linux' && !process.env.GCM_CREDENTIAL_STORE && !(await getConfiguredCredentialStore())) {
+    config.push(['credential.credentialStore', 'secretservice']);
+  }
+  // After the variables that may already be set, like git -c
+  const count = parseInt(process.env.GIT_CONFIG_COUNT || '', 10) || 0;
+  const env: Record<string, string> = { GIT_CONFIG_COUNT: String(count + config.length) };
+  config.forEach(([key, value], i) => {
+    env[`GIT_CONFIG_KEY_${count + i}`] = key;
+    env[`GIT_CONFIG_VALUE_${count + i}`] = value;
+  });
+  return env;
 }
 
 // Clear message for the usual failures of a network command, null for the others
@@ -118,25 +170,26 @@ export function describeNetworkError(stderr: string, stopReason: StopReason | nu
 // Runs a network command with the variables that answer its prompts and use the chosen key, the
 // variables of sshCommandUrl choose the key. Fails with CancelledError when the user cancels a prompt.
 export async function runNetworkCommand<T>(sshCommandUrl: string | null, run: (env: Record<string, string>) => Promise<T>) {
+  const credentialManagerEnv = await getCredentialManagerEnv();
   const currentProvider = provider;
   const credentials = currentProvider ? currentProvider.start() : null;
-  const env: Record<string, string> = { ...(credentials ? credentials.env : {}) };
+  const env: Record<string, string> = { ...(credentials ? credentials.env : {}), ...credentialManagerEnv };
   const sshCommand = sshCommandUrl ? getSshCommand(sshCommandUrl) : null;
   if (sshCommand) {
     env.GIT_SSH_COMMAND = sshCommand;
   }
-  const end = () => credentials ? currentProvider!.end(credentials.session) : Promise.resolve(null);
+  const end = (rejected: boolean) => credentials ? currentProvider!.end(credentials.session, rejected) : Promise.resolve(null);
   let result: T;
   try {
     result = await run(env);
   } catch (e) {
-    const stopReason = await end();
+    const stopReason = await end(e instanceof GitError && /Authentication failed for/i.test(e.stderr));
     if (stopReason === 'cancelled') {
       throw new CancelledError();
     }
     const message = e instanceof GitError ? describeNetworkError(e.stderr, stopReason) : null;
     throw message ? new Error(message) : e;
   }
-  await end();
+  await end(false);
   return result;
 }

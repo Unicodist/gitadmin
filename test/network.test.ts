@@ -1,6 +1,12 @@
-import { describe, it } from 'node:test';
+import { describe, it, before, after } from 'node:test';
 import * as assert from 'node:assert/strict';
-import { describeNetworkError, getSshCommand, getSshHost } from '../src/renderer/helpers/git/network';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as Path from 'path';
+import {
+  describeNetworkError, getCredentialManagerEnv, getSshCommand, getSshHost, hasCredentialManager, isCredentialManagerBuiltIn
+} from '../src/renderer/helpers/git/network';
+import { Field, Settings } from '../src/shared/settings';
 
 describe('getSshHost', () => {
   it('reads the host of SSH URLs', () => {
@@ -82,5 +88,44 @@ describe('describeNetworkError', () => {
   it('keeps the other errors', () => {
     assert.equal(describeNetworkError('fatal: \'origin\' does not appear to be a git repository'), null);
     assert.equal(describeNetworkError('fatal: could not create work tree dir \'engine\': Permission denied'), null);
+  });
+});
+
+describe('getCredentialManagerEnv', { skip: (!hasCredentialManager() || isCredentialManagerBuiltIn()) && 'no Git Credential Manager to add' }, () => {
+  const dir = fs.mkdtempSync(Path.join(os.tmpdir(), 'gitadmin-settings-'));
+  const saved = { count: process.env.GIT_CONFIG_COUNT, store: process.env.GCM_CREDENTIAL_STORE };
+
+  before(() => {
+    Settings.setPath(Path.join(dir, 'Settings'));
+    // Chosen by the user, kept as is on Linux
+    process.env.GCM_CREDENTIAL_STORE = 'cache';
+  });
+
+  after(() => {
+    Settings.setPath(null);
+    fs.rmSync(dir, { recursive: true, force: true });
+    for (const [name, value] of [['GIT_CONFIG_COUNT', saved.count], ['GCM_CREDENTIAL_STORE', saved.store]]) {
+      if (value === undefined) {
+        delete process.env[name!];
+      } else {
+        process.env[name!] = value;
+      }
+    }
+  });
+
+  it('adds Git Credential Manager after the configuration of the environment', async () => {
+    process.env.GIT_CONFIG_COUNT = '2';
+    assert.deepEqual(await getCredentialManagerEnv(), {
+      GIT_CONFIG_COUNT: '3',
+      GIT_CONFIG_KEY_2: 'credential.helper',
+      GIT_CONFIG_VALUE_2: 'manager'
+    });
+    delete process.env.GIT_CONFIG_COUNT;
+    assert.equal((await getCredentialManagerEnv()).GIT_CONFIG_KEY_0, 'credential.helper');
+  });
+
+  it('adds nothing once it is turned off', async () => {
+    Settings.set(Field.CredentialManager, false);
+    assert.deepEqual(await getCredentialManagerEnv(), {});
   });
 });

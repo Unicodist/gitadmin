@@ -16,6 +16,8 @@ export interface AskpassRequest {
   prompt: string;
   // SSH_ASKPASS_PROMPT set by ssh: 'confirm', 'none' or empty
   promptKind: string;
+  // Process that asks, ssh or git: a prompt asked again by the same process had a wrong answer
+  parent: string;
 }
 
 // Returns the answer to print, or null to make the helper fail, which ssh and git take as a cancel
@@ -35,7 +37,8 @@ socket.on('connect', () => {
     token: process.env.GITADMIN_ASKPASS_TOKEN || '',
     session: process.env.${SESSION_VARIABLE} || '',
     prompt: process.argv[2] || '',
-    promptKind: process.env.SSH_ASKPASS_PROMPT || ''
+    promptKind: process.env.SSH_ASKPASS_PROMPT || '',
+    parent: process.env.GITADMIN_ASKPASS_PARENT || ''
   }) + '\\n');
 });
 socket.on('data', (data) => {
@@ -57,9 +60,10 @@ socket.on('error', () => process.exit(1));
 `;
 
 // ssh and git run SSH_ASKPASS and GIT_ASKPASS without arguments other than the prompt, the launcher
-// gives the helper to the executable. Git for Windows runs the scripts that start with #! too.
+// gives the helper to the executable. Git for Windows runs the scripts that start with #! too. $PPID is
+// the ssh or git process that asks, also on Windows where exec starts a new process.
 function getLauncherScript(execPath: string, helperPath: string) {
-  return `#!/bin/sh\nELECTRON_RUN_AS_NODE=1 exec ${quoteShell(execPath)} ${quoteShell(helperPath)} "$@"\n`;
+  return `#!/bin/sh\nGITADMIN_ASKPASS_PARENT=$PPID ELECTRON_RUN_AS_NODE=1 exec ${quoteShell(execPath)} ${quoteShell(helperPath)} "$@"\n`;
 }
 
 // Compares in a constant time
@@ -129,7 +133,8 @@ export class AskpassServer {
           answer = await handler({
             session: String(request.session || ''),
             prompt: String(request.prompt || ''),
-            promptKind: String(request.promptKind || '')
+            promptKind: String(request.promptKind || ''),
+            parent: String(request.parent || '')
           });
         }
       } catch (e) {
