@@ -1,7 +1,6 @@
 import type { RepoWrapper } from './repo-wrapper';
 import { SHARED } from './branch-focus';
 import IntervalTree from 'node-interval-tree';
-import FastPriorityQueue from 'fastpriorityqueue';
 
 // The colors have the same luminance so that no branch stands out, and a contrast of at least
 // 3:1 with the backgrounds of the commit list in both themes, selected rows included.
@@ -74,15 +73,15 @@ export class CommitGraph {
   }
 
   computePositions(repo: RepoWrapper) {
-    function insertCommit(commitSha: string, j: number, forbiddenIndices: Set<number>) {
+    function insertCommit(commitSha: string, j: number, isForbidden: (j: number) => boolean) {
       // Try to insert as close as possible to i
       // replace i by j
       let dj = 1;
       while (j - dj >= 0 || j + dj < branches.length) {
-        if (j + dj < branches.length && branches[j + dj] === null && !forbiddenIndices.has(j + dj)) {
+        if (j + dj < branches.length && branches[j + dj] === null && !isForbidden(j + dj)) {
           branches[j + dj] = commitSha;
           return j + dj;
-        } else if (j - dj >= 0 && branches[j - dj] === null && !forbiddenIndices.has(j - dj)) {
+        } else if (j - dj >= 0 && branches[j - dj] === null && !isForbidden(j - dj)) {
           branches[j - dj] = commitSha;
           return j - dj;
         }
@@ -98,29 +97,28 @@ export class CommitGraph {
     const headSha = repo.isHeadInGraph() ? repo.headCommit!.sha() : null;
     let i = 1;
     const branches: (string | null)[] = [headSha ? 'index' : null];
-    const activeNodes = new Map<string, Set<number>>();
-    const activeNodesQueue = new FastPriorityQueue<[number, string]>((lhs, rhs) => lhs[0] < rhs[0]);
-    if (headSha) {
-      activeNodes.set('index', new Set<number>());
-      activeNodesQueue.add([repo.shaToIndex.get(headSha)!, 'index']);
-    }
+    // Last row that used each lane, for a commit or for the end of a branch. A merge edge runs down the lane of the
+    // parent from the row of the merge, so the parent avoids the lanes used since its highest merge.
+    const lastRow: number[] = [];
+    const useLane = (j: number) => {
+      lastRow[j] = i;
+    };
+    const noneForbidden = () => false;
     for (const commit of repo.commits) {
       let j: number;
       const commitSha = commit.sha();
-      const children = repo.children.get(commit.sha())!;
-      const branchChildren = children.filter((childSha) => repo.parents.get(childSha)![0] === commitSha);
-      const mergeChildren = children.filter((childSha) => repo.parents.get(childSha)![0] !== commitSha);
-      // Compute forbidden indices
-      let highestChild: string | undefined = undefined;
+      const children = repo.children.get(commitSha)!;
+      const branchChildren: string[] = [];
+      // Row of the highest merge child
       let iMin = Infinity;
-      for (const childSha of mergeChildren) {
-        const iChild = this.positions.get(childSha)![0];
-        if (iChild < iMin) {
-          iMin = i;
-          highestChild = childSha;
+      for (const childSha of children) {
+        if (repo.parents.get(childSha)![0] === commitSha) {
+          branchChildren.push(childSha);
+        } else {
+          iMin = Math.min(iMin, this.positions.get(childSha)![0]);
         }
       }
-      const forbiddenIndices = highestChild ? activeNodes.get(highestChild)! : new Set<number>();
+      const isForbidden = iMin === Infinity ? noneForbidden : (j: number) => lastRow[j] > iMin;
       // Find a commit to replace
       let commitToReplace: string | null = null;
       let jCommitToReplace = Infinity;
@@ -131,7 +129,7 @@ export class CommitGraph {
         // The commit can only replace a child whose first parent is this commit
         for (const childSha of branchChildren) {
           const jChild = this.positions.get(childSha)![1]!;
-          if (!forbiddenIndices.has(jChild) && jChild < jCommitToReplace) {
+          if (!isForbidden(jChild) && jChild < jCommitToReplace) {
             commitToReplace = childSha;
             jCommitToReplace = jChild;
           }
@@ -147,26 +145,18 @@ export class CommitGraph {
           const jChild = this.positions.get(childSha)![1];
           // Try to insert near a child
           // We could try to insert near any child instead of arbitrarily chosing the first one
-          j = insertCommit(commitSha, jChild, forbiddenIndices);
+          j = insertCommit(commitSha, jChild, isForbidden);
         } else {
           // TODO: Find a better value for j
           // Starting before the first lane takes it when the index does not
-          j = insertCommit(commitSha, headSha ? 0 : -1, new Set<number>());
+          j = insertCommit(commitSha, headSha ? 0 : -1, noneForbidden);
         }
       }
-      // Remove useless active nodes
-      while (!activeNodesQueue.isEmpty() && activeNodesQueue.peek()![0] < i) {
-        const sha = activeNodesQueue.poll()![1];
-        activeNodes.delete(sha);
+      // The lanes of the commit and of the children it ends are used by this row
+      useLane(j);
+      for (const childSha of branchChildren) {
+        useLane(this.positions.get(childSha)![1]);
       }
-      // Upddate the active nodes
-      const jToAdd = [j, ...branchChildren.map((childSha) => this.positions.get(childSha)![1])];
-      for (const activeNode of activeNodes.values()) {
-        jToAdd.forEach((j) => activeNode.add(j));
-      }
-      activeNodes.set(commitSha, new Set<number>());
-      const iRemove = Math.max(...repo.parents.get(commitSha)!.map((parentSha) => repo.shaToIndex.get(parentSha)!));
-      activeNodesQueue.add([iRemove, commitSha]);
       // Remove children from active branches
       for (const childSha of branchChildren) {
         if (childSha != commitToReplace) {

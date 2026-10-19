@@ -32,7 +32,6 @@
     "dugite": "^3.2.3",
     "electron-squirrel-startup": "^1.0.1",
     "electron-unhandled": "^6.0.0",
-    "fastpriorityqueue": "^0.8.0",
     "file-type": "^22.2.0",
     "ignore": "^7.0.12",
     "isbinaryfile": "^6.0.0",
