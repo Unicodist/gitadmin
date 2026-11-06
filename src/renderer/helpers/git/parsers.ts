@@ -149,6 +149,21 @@ export function parseDiffSummary(output: string) {
     .map((entry) => ({ ...entry, binary: counts.get(entry.newPath)?.binary === true }));
 }
 
+// Parses the output of `git ls-files --unmerged -z`: the stages of the index that a conflicted file has.
+// Stage 1 is the common ancestor, 2 the current version (ours) and 3 the incoming one (theirs), a version
+// that deleted the file has no stage.
+export function parseConflictStages(output: string) {
+  const stages = new Set<number>();
+  for (const entry of output.split('\0')) {
+    // <mode> SP <object> SP <stage> TAB <path>
+    const match = /^\d+ [0-9a-f]+ ([123])\t/.exec(entry);
+    if (match) {
+      stages.add(Number(match[1]));
+    }
+  }
+  return stages;
+}
+
 // Added and removed lines of each file by its new path, from the same output as parseDiffSummary
 export function parseLineCounts(output: string) {
   const tokens = output.split('\0');

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import * as fs from 'fs';
 import * as os from 'os';
 import * as Path from 'path';
 import { TestRepo, lines } from '../helpers';
@@ -83,4 +84,45 @@ test('shows an empty state without recent repositories', async () => {
     await expect(action).toHaveAttribute('aria-keyshortcuts', `${modifier}+${key}`);
     await expect(action.locator('kbd')).toHaveText([process.platform === 'darwin' ? '⌘' : 'Ctrl', key]);
   }
+});
+
+test('offers to remove a recent repository whose folder is gone', async () => {
+  const name = Path.basename(repo.workdir);
+  const missing = Path.join(Path.dirname(repo.workdir), 'moved-engine');
+  launched = await launchApp({ settings: { recentlyOpened: [missing, repo.workdir] } });
+  const page = launched.page;
+  const entry = page.locator('.recent-repo', { hasText: 'moved-engine' });
+  await entry.getByRole('button', { name: 'moved-engine', exact: true }).click();
+
+  // A message in the entry, not the error of git
+  await expect(entry.locator('.recent-repo-missing')).toHaveText('Folder not found');
+  await expect(page.locator('.notification')).toHaveCount(0);
+  const remove = entry.getByRole('button', { name: 'Remove moved-engine from the recent repositories' });
+  await expect(remove).toBeFocused();
+
+  await remove.click();
+  await expect(page.locator('.recent-repo')).toHaveCount(1);
+  // The focus goes to the entry that took its place
+  await expect(page.getByRole('button', { name, exact: true })).toBeFocused();
+  // The list is saved
+  await page.reload();
+  await expect(page.getByRole('button', { name, exact: true })).toBeVisible();
+  await expect(page.locator('.recent-repo')).toHaveCount(1);
+});
+
+test('opens a recent repository whose folder came back', async () => {
+  const name = Path.basename(repo.workdir);
+  const moved = `${repo.workdir}-moved`;
+  fs.renameSync(repo.workdir, moved);
+  try {
+    launched = await launchApp({ settings: { recentlyOpened: [repo.workdir] } });
+    const page = launched.page;
+    const entry = page.locator('.recent-repo');
+    await entry.getByRole('button', { name, exact: true }).click();
+    await expect(entry.locator('.recent-repo-missing')).toHaveText('Folder not found');
+  } finally {
+    fs.renameSync(moved, repo.workdir);
+  }
+  await launched.page.getByRole('button', { name, exact: true }).click();
+  await expect(launched.page.locator('.repo-title h1')).toHaveText(name);
 });

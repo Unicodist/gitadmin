@@ -1,4 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
+import * as fs from 'fs';
 import * as zlib from 'zlib';
 import { TestRepo, lines } from '../helpers';
 import { launchApp, LaunchedApp, openRecentRepo } from './fixtures';
@@ -340,6 +341,55 @@ test.describe('conflict viewer', () => {
     await expect(commitAndMerge).toBeDisabled();
     await toolbar.getByRole('button', { name: 'Mark as resolved' }).click();
     await expect(commitAndMerge).toBeEnabled();
+    expect(launched.pageErrors).toEqual([]);
+  });
+});
+
+test.describe('modify/delete conflict', () => {
+  test.beforeEach(async () => {
+    repo = await TestRepo.create();
+    await repo.commit('Add the engine', { 'engine.txt': lines('analytical', 'engine') });
+    await repo.git('checkout', '--quiet', '-b', 'difference');
+    await repo.commit('Use the difference engine', { 'engine.txt': lines('difference', 'engine') });
+    await repo.git('checkout', '--quiet', 'main');
+    await repo.git('rm', '--quiet', 'engine.txt');
+    await repo.commit('Remove the engine');
+    await repo.git('merge', '--quiet', 'difference').catch(() => {});
+    await launch();
+  });
+
+  test('deletes the file with the version that deleted it', async () => {
+    const indexViewer = page.locator('.index-viewer');
+    await indexViewer.locator('li', { hasText: 'engine.txt' }).click();
+    const toolbar = page.locator('.patch-toolbar');
+    const keepDeletion = toolbar.getByRole('button', { name: 'Keep current deletion', exact: true });
+    await expect(keepDeletion).toHaveAttribute('title', 'The current version deleted the file, delete it');
+    await expect(toolbar.getByRole('button', { name: 'Take incoming version', exact: true })).toBeVisible();
+
+    await keepDeletion.click();
+    await expect.poll(() => fs.existsSync(repo.path('engine.txt'))).toBe(false);
+    const emptyState = page.locator('.patch-viewer .viewer-empty-state');
+    await expect(emptyState.locator('.empty-state-title')).toHaveText('File deleted');
+    await expect(page.locator('.patch-editor')).toBeHidden();
+    // No error toast
+    await expect(page.locator('.notification')).toHaveCount(0);
+
+    // The incoming version brings the file back
+    await toolbar.getByRole('button', { name: 'Take incoming version', exact: true }).click();
+    await expect.poll(() => repo.read('engine.txt')).toBe(lines('difference', 'engine'));
+    await expect(emptyState).toHaveCount(0);
+    await expect(page.locator('.patch-editor .view-lines')).toHaveText(/^difference\s*engine\s*$/);
+
+    // Delete it again and resolve the conflict with the deletion
+    await keepDeletion.click();
+    await expect(emptyState).toBeVisible();
+    const commitAndMerge = indexViewer.locator('.submit-row').getByRole('button', { name: 'Commit and merge' });
+    await expect(commitAndMerge).toBeDisabled();
+    await toolbar.getByRole('button', { name: 'Mark as resolved' }).click();
+    await expect(commitAndMerge).toBeEnabled();
+    await commitAndMerge.click();
+    await expect.poll(() => repo.git('log', '-1', '--format=%P').then((parents) => parents.trim().split(' ').length)).toBe(2);
+    expect(await repo.git('ls-tree', '--name-only', 'HEAD')).toBe('');
     expect(launched.pageErrors).toEqual([]);
   });
 });

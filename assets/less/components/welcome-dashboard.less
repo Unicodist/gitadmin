@@ -239,6 +239,25 @@ div.welcome-dashboard {
       font-size: var(--font-size-sm);
       line-height: 16px;
     }
+
+    // The folder was moved, renamed or deleted
+    &.missing {
+      span.welcome-tile {
+        background-color: var(--danger-subtle);
+        color: var(--danger);
+      }
+
+      p.recent-repo-missing {
+        color: var(--danger);
+      }
+    }
+
+    // Above the button of the heading, which covers the whole entry
+    button.recent-repo-remove {
+      position: relative;
+      z-index: 1;
+      flex: none;
+    }
   }
 
   div.recent-repos-empty {

@@ -9,10 +9,11 @@ import {
   toggleFocus
 } from '../src/renderer/helpers/branch-focus';
 import { createReferenceContextMenu } from '../src/renderer/helpers/reference-context-menu';
-import { BRANCH_COLORS, getCommitColor, getBranchColor, isSharedCommit, SHARED_COLOR } from '../src/renderer/helpers/commit-graph';
+import { getCommitColor, getBranchColor, isSharedCommit, SHARED_COLOR } from '../src/renderer/helpers/commit-graph';
 import { Commit } from '../src/renderer/helpers/git/model';
 import { RepoWrapper } from '../src/renderer/helpers/repo-wrapper';
 import { Field, Settings } from '../src/shared/settings';
+import { BRANCH_COLOR_COUNT } from '../src/shared/theme-manager';
 import { TestRepo } from './helpers';
 
 const MAIN = 'refs/heads/main';
@@ -31,7 +32,7 @@ describe('focus list', () => {
   });
 
   it('keeps one color per reference', () => {
-    assert.equal(MAX_FOCUSED_REFERENCES, BRANCH_COLORS.length);
+    assert.equal(MAX_FOCUSED_REFERENCES, BRANCH_COLOR_COUNT);
     const full = Array.from({ length: MAX_FOCUSED_REFERENCES }, (_value, i) => `refs/heads/b${i}`);
     assert.deepEqual(addToFocus(full, FEATURE), full);
     assert.deepEqual(toggleFocus(full, FEATURE), full);

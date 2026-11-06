@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import * as assert from 'node:assert/strict';
-import { parseCommits, parseDiffSummary, parseHunks, parseReferences } from '../src/renderer/helpers/git/parsers';
+import { parseCommits, parseConflictStages, parseDiffSummary, parseHunks, parseReferences } from '../src/renderer/helpers/git/parsers';
 import { PatchStatus } from '../src/renderer/helpers/git/model';
 
 const SHA_A = 'a'.repeat(40);
@@ -165,5 +165,21 @@ describe('parseHunks', () => {
 
   it('returns no hunk for binary files', () => {
     assert.deepEqual(parseHunks('diff --git a/x b/x\nBinary files a/x and b/x differ\n'), []);
+  });
+});
+
+describe('parseConflictStages', () => {
+  it('reads the stages of a conflicted file', () => {
+    const output = [`100644 ${SHA_A} 1\tfile.txt`, `100644 ${SHA_B} 2\tfile.txt`, `100644 ${SHA_C} 3\tfile.txt`, ''].join('\0');
+    assert.deepEqual(parseConflictStages(output), new Set([1, 2, 3]));
+  });
+
+  it('leaves out the version that deleted the file', () => {
+    const output = [`100644 ${SHA_A} 1\tdir/my file`, `100644 ${SHA_C} 3\tdir/my file`, ''].join('\0');
+    assert.deepEqual(parseConflictStages(output), new Set([1, 3]));
+  });
+
+  it('has no stage for a file that is not conflicted', () => {
+    assert.deepEqual(parseConflictStages(''), new Set());
   });
 });

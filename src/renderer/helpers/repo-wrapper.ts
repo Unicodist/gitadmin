@@ -8,7 +8,8 @@ import { git, gitBuffer } from './git/runner';
 import { CancelledError, getSshCommand, getSshHostKeys, runNetworkCommand } from './git/network';
 import { Commit, DiffFile, DiffLine, Hunk, Patch, PatchStatus, Reference, Stash } from './git/model';
 import {
-  COMMIT_FORMAT, DiffEntry, REFERENCE_FORMAT, parseCommits, parseDiffSummary, parseHunks, parseLineCounts, parseReferences
+  COMMIT_FORMAT, DiffEntry, REFERENCE_FORMAT, parseCommits, parseConflictStages, parseDiffSummary, parseHunks, parseLineCounts,
+  parseReferences
 } from './git/parsers';
 import { ApplyDirection, buildPartialPatch } from './git/partial-patch';
 import { BranchComparison, BranchRelations, FocusLayout, ForkPoint, computeFocusLayout, pruneFocus, renameInFocus } from './branch-focus';
@@ -819,10 +820,37 @@ export class RepoWrapper {
     });
   }
 
-  // Replaces a conflicted file of the working directory with one of its versions, the file stays conflicted until it is staged
+  // Versions of a conflicted file that have the file, a modify/delete conflict lacks the version that deleted it.
+  // Null if the file is not conflicted.
+  async getConflictVersions(path: string): Promise<Set<ConflictVersion> | null> {
+    const stages = parseConflictStages(await this.git(['ls-files', '--unmerged', '-z', '--', path]));
+    if (stages.size === 0) {
+      return null;
+    }
+    const versions = new Set<ConflictVersion>();
+    if (stages.has(2)) {
+      versions.add(ConflictVersion.Current);
+    }
+    if (stages.has(3)) {
+      versions.add(ConflictVersion.Incoming);
+    }
+    return versions;
+  }
+
+  // Replaces a conflicted file of the working directory with one of its versions, the file stays conflicted until it is staged.
+  // If the version deleted the file, the file is deleted, and staging it resolves the conflict with the deletion.
   async checkoutConflictVersion(patch: Patch, version: ConflictVersion) {
     const failureMessage = version === ConflictVersion.Current ? 'Unable to keep the current version' : 'Unable to take the incoming version';
-    await this.tryRun(failureMessage, () => this.git(['checkout', '--quiet', `--${version}`, '--', patch.newFile.path]));
+    const path = patch.newFile.path;
+    await this.tryRun(failureMessage, async () => {
+      const versions = await this.getConflictVersions(path);
+      if (versions && !versions.has(version)) {
+        await fs.promises.rm(Path.join(this.workdir, path), { force: true });
+      } else {
+        // git reports the files that are not conflicted
+        await this.git(['checkout', '--quiet', `--${version}`, '--', path]);
+      }
+    });
   }
 
   getIdentityEnvironment(committerOnly = false) {

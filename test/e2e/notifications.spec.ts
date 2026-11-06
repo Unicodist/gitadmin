@@ -32,9 +32,10 @@ test.afterEach(async () => {
 });
 
 test('keeps an error until it is dismissed', async () => {
-  // A recent repository that was removed since
+  // A recent folder that is not a repository anymore
   const parent = fs.mkdtempSync(Path.join(os.tmpdir(), 'gitadmin-removed-'));
   cleanup.push(parent);
+  fs.mkdirSync(Path.join(parent, 'difference-engine'));
   launched = await launchApp({ settings: { recentlyOpened: [Path.join(parent, 'difference-engine')] } });
   page = launched.page;
   // The timers of the page only run when the test makes the time pass
