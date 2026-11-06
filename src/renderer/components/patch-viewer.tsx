@@ -37,6 +37,18 @@ async function getBlob(repo: RepoWrapper, patch: Patch, file: DiffFile) {
   return [buffer, type] as Blob;
 }
 
+// Keeping the version of a conflict that deleted the file deletes it from the working directory
+async function getConflictBlob(repo: RepoWrapper, patch: Patch, file: DiffFile): Promise<Blob> {
+  try {
+    return await getBlob(repo, patch, file);
+  } catch (e) {
+    if (e && e.code === 'ENOENT') {
+      return [Buffer.from(''), BlobType.Void];
+    }
+    throw e;
+  }
+}
+
 function getViewerType(oldType: BlobType, newType: BlobType) {
   switch (oldType) {
     case BlobType.Void:
@@ -65,6 +77,7 @@ export interface PatchViewerState {
   loadedPatch: Patch | null;
   oldBlob: Buffer;
   newBlob: Buffer;
+  newType: BlobType;
   viewerType: BlobType;
 }
 
@@ -77,6 +90,7 @@ export class PatchViewer extends React.PureComponent<PatchViewerProps, PatchView
       loadedPatch: null,
       oldBlob: Buffer.from(''),
       newBlob: Buffer.from(''),
+      newType: BlobType.Text,
       viewerType: BlobType.Text
     };
     this.handleKeyDown = this.handleKeyDown.bind(this);
@@ -117,17 +131,18 @@ export class PatchViewer extends React.PureComponent<PatchViewerProps, PatchView
     const patch = this.props.patch;
     // Load old blob
     let oldPromise: Promise<Blob>;
+    const readBlob = patch.isConflicted() ? getConflictBlob : getBlob;
     if (this.props.patch.isAdded() || this.props.patch.isUntracked()) {
       oldPromise = new Promise((resolve) => resolve([Buffer.from(''), BlobType.Void]));
     } else {
-      oldPromise = getBlob(repo, patch, patch.oldFile);
+      oldPromise = readBlob(repo, patch, patch.oldFile);
     }
     // Load new blob
     let newPromise: Promise<Blob>;
     if (this.props.patch.isDeleted()) {
       newPromise = new Promise((resolve) => resolve([Buffer.from(''), BlobType.Void]));
     } else {
-      newPromise = getBlob(repo, patch, patch.newFile);
+      newPromise = readBlob(repo, patch, patch.newFile);
     }
     // Create a cancellable promise
     if (this.blobsPromise) {
@@ -140,6 +155,7 @@ export class PatchViewer extends React.PureComponent<PatchViewerProps, PatchView
         loadedPatch: this.props.patch,
         oldBlob: oldBlob,
         newBlob: newBlob,
+        newType: newType,
         viewerType: getViewerType(oldType, newType)
       });
     } catch (e) {
@@ -149,22 +165,24 @@ export class PatchViewer extends React.PureComponent<PatchViewerProps, PatchView
   render() {
     let viewer: React.JSX.Element | null = null;
     if (this.state.loadedPatch) {
-      if (this.state.viewerType === BlobType.Text) {
-        if (this.props.patchType === PatchType.Unstaged && this.props.patch.isConflicted()) {
-          viewer = <ConflictViewer repo={this.props.repo}
-            patch={this.props.patch}
-            content={this.state.newBlob.toString()}
-            editorTheme={this.props.editorTheme}
-            options={this.props.options} />;
-        } else {
-          viewer = <TextPatchViewer repo={this.props.repo}
-            patch={this.state.loadedPatch}
-            oldString={this.state.oldBlob.toString()}
-            newString={this.state.newBlob.toString()}
-            type={this.props.patchType}
-            editorTheme={this.props.editorTheme}
-            options={this.props.options} />;
-        }
+      const conflicted = this.props.patchType === PatchType.Unstaged && this.props.patch.isConflicted();
+      const deleted = this.state.newType === BlobType.Void;
+      if (conflicted && (this.state.viewerType === BlobType.Text || deleted)) {
+        // The file is missing once the version that deleted it is kept
+        viewer = <ConflictViewer repo={this.props.repo}
+          patch={this.props.patch}
+          content={this.state.newBlob.toString()}
+          deleted={deleted}
+          editorTheme={this.props.editorTheme}
+          options={this.props.options} />;
+      } else if (this.state.viewerType === BlobType.Text) {
+        viewer = <TextPatchViewer repo={this.props.repo}
+          patch={this.state.loadedPatch}
+          oldString={this.state.oldBlob.toString()}
+          newString={this.state.newBlob.toString()}
+          type={this.props.patchType}
+          editorTheme={this.props.editorTheme}
+          options={this.props.options} />;
       } else if (this.state.viewerType === BlobType.Image) {
         viewer = <ImagePatchViewer repo={this.props.repo}
           patch={this.props.patch}

@@ -7,7 +7,8 @@ import {
 import {
   STASH_KEY, computeBranchKeys, computeLaneLabels, getBranchKey, getInitials, getKeyColor, getMergedBranchName, getPinnedLabels
 } from '../src/renderer/helpers/canvas-layout';
-import { BRANCH_COLORS } from '../src/renderer/helpers/commit-graph';
+import { getBranchColor } from '../src/renderer/helpers/commit-graph';
+import { BRANCH_COLOR_COUNT } from '../src/shared/theme-manager';
 import { Commit, Reference } from '../src/renderer/helpers/git/model';
 import { TestRepo } from './helpers';
 
@@ -94,7 +95,8 @@ describe('canvas layout', () => {
     assert.equal(getBranchKey(new Reference('refs/heads/main', '', '')), 'main');
     assert.equal(getBranchKey(new Reference('refs/tags/v1.0', '', '')), 'v1.0');
     assert.equal(getKeyColor('main'), getKeyColor('main'));
-    assert.ok(BRANCH_COLORS.includes(getKeyColor('feature')));
+    const colors = Array.from({ length: BRANCH_COLOR_COUNT }, (_, i) => getBranchColor(i));
+    assert.ok(colors.includes(getKeyColor('feature')));
   });
 });
 

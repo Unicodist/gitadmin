@@ -38,11 +38,18 @@ export interface ConflictViewerProps {
   repo: RepoWrapper;
   patch: Patch;
   content: string;
+  // The file is not in the working directory, a version that deleted it was kept
+  deleted: boolean;
   editorTheme: string;
   options: ConflictViewerOptions;
 }
 
-export class ConflictViewer extends React.PureComponent<ConflictViewerProps, {}> {
+export interface ConflictViewerState {
+  // Versions that have the file, the other one deleted it (modify/delete conflict). Null until they are read.
+  versions: Set<ConflictVersion> | null;
+}
+
+export class ConflictViewer extends React.PureComponent<ConflictViewerProps, ConflictViewerState> {
   divEditor: React.RefObject<HTMLDivElement | null>;
   editor: any;
   viewZoneIds: number[];
@@ -57,6 +64,9 @@ export class ConflictViewer extends React.PureComponent<ConflictViewerProps, {}>
     this.viewZoneIds = [];
     this.overlayWidgets = [];
     this.decorations = [];
+    this.state = {
+      versions: null
+    };
     this.setUpEditor = this.setUpEditor.bind(this);
     this.handleOpenInEditor = this.handleOpenInEditor.bind(this);
     this.handleKeepCurrent = this.handleKeepCurrent.bind(this);
@@ -67,9 +77,13 @@ export class ConflictViewer extends React.PureComponent<ConflictViewerProps, {}>
   componentDidMount() {
     this.conflicts = findConflictHunks(this.props.content.toString());
     this.setUpEditor();
+    this.loadVersions();
   }
 
   componentDidUpdate(prevProps: ConflictViewerProps) {
+    if (this.props.patch !== prevProps.patch) {
+      this.loadVersions();
+    }
     // The editor is created once Monaco is loaded
     if (!this.editor) {
       return;
@@ -94,6 +108,25 @@ export class ConflictViewer extends React.PureComponent<ConflictViewerProps, {}>
     if (this.editor) {
       this.editor.dispose();
     }
+  }
+
+  async loadVersions() {
+    const patch = this.props.patch;
+    let versions: Set<ConflictVersion> | null = null;
+    try {
+      versions = await this.props.repo.getConflictVersions(patch.newFile.path);
+    } catch (e) {
+      console.error(`Unable to read the versions of ${patch.newFile.path}`, e);
+    }
+    // Another file may have been opened meanwhile
+    if (this.props.patch === patch) {
+      this.setState({ versions: versions });
+    }
+  }
+
+  // A version that deleted the file deletes it
+  isDeletion(version: ConflictVersion) {
+    return this.state.versions !== null && !this.state.versions.has(version);
   }
 
   handleOpenInEditor() {
@@ -335,6 +368,8 @@ export class ConflictViewer extends React.PureComponent<ConflictViewerProps, {}>
   }
 
   render() {
+    const currentDeletes = this.isDeletion(ConflictVersion.Current);
+    const incomingDeletes = this.isDeletion(ConflictVersion.Incoming);
     return (
       <>
         <div className='patch-toolbar'>
@@ -350,17 +385,17 @@ export class ConflictViewer extends React.PureComponent<ConflictViewerProps, {}>
           <div className='patch-toolbar-end conflict-actions'>
             <button type='button'
               className='small-button'
-              title='Keep the current version of the file'
+              title={currentDeletes ? 'The current version deleted the file, delete it' : 'Keep the current version of the file'}
               onClick={this.handleKeepCurrent}>
               <span className='conflict-swatch current' aria-hidden='true' />
-              <span className='button-label'>Keep current<span className='label-end'> version</span></span>
+              <span className='button-label'>Keep current<span className='label-end'>{currentDeletes ? ' deletion' : ' version'}</span></span>
             </button>
             <button type='button'
               className='small-button'
-              title='Take the incoming version of the file'
+              title={incomingDeletes ? 'The incoming version deleted the file, delete it' : 'Take the incoming version of the file'}
               onClick={this.handleTakeIncoming}>
               <span className='conflict-swatch incoming' aria-hidden='true' />
-              <span className='button-label'>Take incoming<span className='label-end'> version</span></span>
+              <span className='button-label'>Take incoming<span className='label-end'>{incomingDeletes ? ' deletion' : ' version'}</span></span>
             </button>
             <button type='button'
               className='primary-button small-button'
@@ -371,7 +406,16 @@ export class ConflictViewer extends React.PureComponent<ConflictViewerProps, {}>
             </button>
           </div>
         </div>
-        <div className='patch-editor' ref={this.divEditor} />
+        {this.props.deleted ?
+          <div className='binary-viewer'>
+            <div className='viewer-empty-state'>
+              <Icon name='file-minus' size={32} />
+              <p className='empty-state-title'>File deleted</p>
+              <p className='empty-state-hint'>Mark it as resolved to delete it, or pick a version to restore it</p>
+            </div>
+          </div> : null}
+        {/* The editor stays while the file is deleted, it shows the file again once a version restores it */}
+        <div className='patch-editor' ref={this.divEditor} hidden={this.props.deleted} />
       </>
     );
   }

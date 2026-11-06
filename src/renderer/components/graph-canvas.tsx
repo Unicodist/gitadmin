@@ -28,12 +28,24 @@ export class GraphCanvas extends React.PureComponent<GraphCanvasProps, {}> {
   end: number;
   // Values of the CSS variables used by the colors, read once per drawing
   cssColors: Map<string, string>;
+  themeObserver: MutationObserver;
 
   constructor(props: GraphCanvasProps) {
     super(props);
     this.canvas = React.createRef<HTMLCanvasElement>();
     this.offset = 0;
     this.cssColors = new Map<string, string>();
+    this.drawGraph = this.drawGraph.bind(this);
+  }
+
+  componentDidMount() {
+    // The theme sets the branch colors on the root element
+    this.themeObserver = new MutationObserver(this.drawGraph);
+    this.themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['style', 'data-scheme'] });
+  }
+
+  componentWillUnmount() {
+    this.themeObserver.disconnect();
   }
 
   componentDidUpdate(prevProps: GraphCanvasProps) {
@@ -90,7 +102,7 @@ export class GraphCanvas extends React.PureComponent<GraphCanvasProps, {}> {
     // Set the style
     ctx.lineWidth = LINE_WIDTH;
     ctx.setLineDash([DASH_LENGTH]);
-    ctx.strokeStyle = getBranchColor(0);
+    ctx.strokeStyle = this.resolveColor(getBranchColor(0));
 
     // Draw the node
     const [x, y] = this.computeNodeCenterCoordinates(0, 0);
@@ -118,7 +130,7 @@ export class GraphCanvas extends React.PureComponent<GraphCanvasProps, {}> {
       // Set the style
       ctx.lineWidth = LINE_WIDTH;
       ctx.setLineDash([DASH_LENGTH]);
-      ctx.strokeStyle = getBranchColor(0);
+      ctx.strokeStyle = this.resolveColor(getBranchColor(0));
 
       // Draw the edge
       ctx.beginPath();
@@ -136,7 +148,7 @@ export class GraphCanvas extends React.PureComponent<GraphCanvasProps, {}> {
     // The commits can be reloaded before the graph, the row may not exist for a moment
     const commit = repo.commits[i - 1];
     if (!repo.focusLayout || !commit) {
-      return getBranchColor(j);
+      return this.resolveColor(getBranchColor(j));
     }
     return this.resolveColor(getCommitColor(repo, commit.sha()));
   }

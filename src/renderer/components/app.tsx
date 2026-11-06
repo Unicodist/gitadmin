@@ -15,6 +15,7 @@ import { PreferencesDialog } from './preferences-dialog';
 import { Field, Settings } from '../../shared/settings';
 import { DEFAULT_THEME, getBackgroundColor, getEditorThemeData, getEditorThemeName, SYSTEM_THEME, ThemeManager }
   from '../../shared/theme-manager';
+import { addRecentRepo, getMissingFolderMessage, isFolderMissing } from '../helpers/recent-repos';
 import { InputDialog } from './input-dialog';
 import { FocusDialog } from './focus-dialog';
 import { CredentialDialog } from './credential-dialog';
@@ -164,7 +165,8 @@ export class App extends React.PureComponent<{}, AppState> {
     try {
       this.addRepo(await RepoWrapper.open(path));
     } catch (e) {
-      this.showNotification(`Unable to open repo: ${e.message}`, NotificationType.Error);
+      const message = await isFolderMissing(path) ? getMissingFolderMessage(path) : `Unable to open repo: ${e.message}`;
+      this.showNotification(message, NotificationType.Error);
     }
   }
 
@@ -173,14 +175,7 @@ export class App extends React.PureComponent<{}, AppState> {
     this.setState({
       repos: [repoState]
     });
-    // Update settings
-    const recentlyOpened: string[] = Settings.get(Field.RecentlyOpened, []);
-    // Make sure that there is no duplicate
-    const iPath = recentlyOpened.indexOf(repoState.workdir);
-    if (iPath !== -1) {
-      recentlyOpened.splice(iPath, 1);
-    }
-    Settings.set(Field.RecentlyOpened, [repoState.workdir, ...recentlyOpened.slice(0, 2)]);
+    Settings.set(Field.RecentlyOpened, addRecentRepo(Settings.get(Field.RecentlyOpened, []), repoState.workdir));
   }
 
   closeRepo(i: number) {

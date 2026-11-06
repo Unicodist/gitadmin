@@ -1,5 +1,6 @@
 import { Commit, Reference } from './git/model';
-import { BRANCH_COLORS, Node } from './commit-graph';
+import { Node, getBranchColor } from './commit-graph';
+import { BRANCH_COLOR_COUNT } from '../../shared/theme-manager';
 
 // What the canvas graph draws besides the lanes of commit-graph.ts: a color per branch that does not change with
 // the filters, the initials of the authors, and the names of the branches pinned to the top of their lanes.
@@ -62,7 +63,7 @@ export function getKeyColor(key: string) {
     hash ^= key.charCodeAt(i);
     hash = Math.imul(hash, 0x01000193);
   }
-  return BRANCH_COLORS[(hash >>> 0) % BRANCH_COLORS.length];
+  return getBranchColor((hash >>> 0) % BRANCH_COLOR_COUNT);
 }
 
 export const STASH_KEY = 'stash';

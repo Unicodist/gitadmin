@@ -655,16 +655,72 @@ describe('merges', () => {
     assert.deepEqual(errors(), []);
   });
 
-  it('reports a version that deleted the conflicted file', async () => {
+  // file.txt is deleted on main and edited on feature
+  async function loadDeleteConflict() {
     await repo.git('rm', '--quiet', 'file.txt');
     await repo.commit('Delete');
     await assert.rejects(repo.git('merge', '--quiet', 'feature'));
-    const { wrapper, errors } = await load();
-    await wrapper.checkoutConflictVersion(wrapper.unstagedPatches[0], ConflictVersion.Current);
-    assert.equal(errors().length, 1);
-    assert.match(errors()[0].message, /^Unable to keep the current version: .*does not have our version/);
-    // The file is left as it was, with the incoming version
+    const result = await load();
+    return { ...result, conflict: result.wrapper.unstagedPatches[0] };
+  }
+
+  it('tells which versions of a conflicted file have the file', async () => {
+    const { wrapper } = await loadDeleteConflict();
+    assert.deepEqual(await wrapper.getConflictVersions('file.txt'), new Set([ConflictVersion.Incoming]));
+    assert.equal(await wrapper.getConflictVersions('other.txt'), null);
+  });
+
+  it('deletes a conflicted file when the version that deleted it is kept', async () => {
+    const { wrapper, errors, conflict } = await loadDeleteConflict();
+    await wrapper.checkoutConflictVersion(conflict, ConflictVersion.Current);
+    assert.equal(fs.existsSync(repo.path('file.txt')), false);
+    // The file stays conflicted until it is marked as resolved
+    await wrapper.updateIndex();
+    assert.deepEqual(patchList(wrapper.unstagedPatches), [[PatchStatus.Conflicted, 'file.txt']]);
+    await wrapper.stagePatch(conflict);
+    await wrapper.updateIndex();
+    assert.deepEqual(patchList(wrapper.unstagedPatches), []);
+    await wrapper.finishMerge('Merge feature');
+    assert.equal(await repo.git('ls-tree', '--name-only', 'HEAD'), '');
+    assert.deepEqual(errors(), []);
+  });
+
+  it('restores the edited version after the deletion was kept', async () => {
+    const { wrapper, errors, conflict } = await loadDeleteConflict();
+    await wrapper.checkoutConflictVersion(conflict, ConflictVersion.Current);
+    await wrapper.checkoutConflictVersion(conflict, ConflictVersion.Incoming);
     assert.equal(repo.read('file.txt'), lines('a', 'feature', 'c'));
+    await wrapper.stagePatch(conflict);
+    await wrapper.finishMerge('Merge feature');
+    assert.equal(await repo.git('show', 'HEAD:file.txt'), lines('a', 'feature', 'c'));
+    assert.deepEqual(errors(), []);
+  });
+
+  it('deletes a conflicted file when the incoming version deleted it', async () => {
+    await repo.git('checkout', '--quiet', 'feature');
+    await repo.git('rm', '--quiet', 'file.txt');
+    await repo.commit('Delete');
+    await repo.git('checkout', '--quiet', 'main');
+    await repo.commit('Main', { 'file.txt': lines('a', 'main', 'c') });
+    await assert.rejects(repo.git('merge', '--quiet', 'feature'));
+    const { wrapper, errors } = await load();
+    const conflict = wrapper.unstagedPatches[0];
+    assert.deepEqual(await wrapper.getConflictVersions('file.txt'), new Set([ConflictVersion.Current]));
+    await wrapper.checkoutConflictVersion(conflict, ConflictVersion.Incoming);
+    assert.equal(fs.existsSync(repo.path('file.txt')), false);
+    await wrapper.stagePatch(conflict);
+    await wrapper.finishMerge('Merge feature');
+    assert.equal(await repo.git('ls-tree', '--name-only', 'HEAD'), '');
+    assert.deepEqual(errors(), []);
+  });
+
+  it('leaves a file that is no longer conflicted as it is', async () => {
+    const { wrapper, errors, conflict } = await loadConflict();
+    await wrapper.checkoutConflictVersion(conflict, ConflictVersion.Current);
+    await wrapper.stagePatch(conflict);
+    await wrapper.checkoutConflictVersion(conflict, ConflictVersion.Incoming);
+    assert.equal(repo.read('file.txt'), lines('a', 'main', 'c'));
+    assert.deepEqual(errors(), []);
   });
 
   it('aborts a merge', async () => {

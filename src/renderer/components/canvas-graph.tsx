@@ -231,14 +231,27 @@ export class CanvasGraph extends React.PureComponent<CanvasGraphProps, CanvasGra
     return this.colors.get(name)!;
   }
 
+  // The canvas does not understand CSS variables, like the branch colors of the theme: their values are read from
+  // the page and kept until the theme changes
+  resolveColor(color: string) {
+    const match = /^var\(--([\w-]+)\)$/.exec(color);
+    if (!match) {
+      return color;
+    }
+    if (!this.colors.has(match[1])) {
+      const value = this.container.current ? getComputedStyle(this.container.current).getPropertyValue(`--${match[1]}`).trim() : '';
+      this.colors.set(match[1], value || 'gray');
+    }
+    return this.colors.get(match[1])!;
+  }
+
   // The colors of the focused branches while several are focused, else the color of the branch
   getColor(sha: string) {
     const repo = this.props.repo;
     if (repo.focusLayout && repo.focusLayout.owners.has(sha)) {
-      const color = getCommitColor(repo, sha);
-      return color.startsWith('var(') ? this.color('text-muted') : color;
+      return this.resolveColor(getCommitColor(repo, sha));
     }
-    return getKeyColor(this.keys.get(sha) || sha);
+    return this.resolveColor(getKeyColor(this.keys.get(sha) || sha));
   }
 
   getRowCommit(row: number) {

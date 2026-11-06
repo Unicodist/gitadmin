@@ -28,9 +28,13 @@ test('follows the color scheme of the OS by default', async () => {
   await page.emulateMedia({ colorScheme: 'dark' });
   await expect.poll(() => getScheme(page)).toBe('dark');
   expect(await getVariable(page, '--surface-0')).toBe(readTheme('dark').css['surface-0']);
+  // The branch colors of the graph come from the theme too
+  expect(await getVariable(page, '--branch-0')).toBe(readTheme('dark').branches[0]);
+  expect(await getVariable(page, '--branch-15')).toBe(readTheme('dark').branches[15]);
   await page.emulateMedia({ colorScheme: 'light' });
   await expect.poll(() => getScheme(page)).toBe('light');
   expect(await getVariable(page, '--surface-0')).toBe(readTheme('light').css['surface-0']);
+  expect(await getVariable(page, '--branch-0')).toBe(readTheme('light').branches[0]);
 });
 
 test('keeps the theme of the settings when the color scheme of the OS changes', async () => {

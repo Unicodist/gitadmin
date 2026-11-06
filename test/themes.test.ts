@@ -4,9 +4,9 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as Path from 'path';
 import {
-  getEditorThemeData, getEditorThemeName, listThemes, parseTheme, resolveThemeName, SYSTEM_THEME, Theme, ThemeManager
+  BRANCH_COLOR_COUNT, getBranchVariable, getEditorThemeData, getEditorThemeName, listThemes, parseTheme, resolveThemeName,
+  SYSTEM_THEME, Theme, ThemeManager
 } from '../src/shared/theme-manager';
-import { BRANCH_COLORS } from '../src/renderer/helpers/commit-graph';
 import { listFiles } from './helpers';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -109,6 +109,15 @@ describe('themes', () => {
     assert.equal(dark.monaco.base, 'vs-dark');
   });
 
+  it('defines every branch color in the light and dark themes', () => {
+    for (const theme of [light, dark]) {
+      assert.equal(theme.branches.length, BRANCH_COLOR_COUNT);
+      assert.ok(theme.branches.every((color: string) => /^#[0-9a-f]{6}$/.test(color)), theme.scheme);
+      // The colors of a theme are all different
+      assert.equal(new Set(theme.branches).size, BRANCH_COLOR_COUNT, theme.scheme);
+    }
+  });
+
   it('only uses variables that are defined by the tokens or the themes', () => {
     const defined = new Set([...getTokenVariables(), ...getComponentVariables(), ...Object.keys(light.css)]);
     const files = [...listFiles(LESS_PATH, ['.less']), ...listFiles(SRC_PATH, ['.ts', '.tsx'])];
@@ -157,6 +166,30 @@ describe('parseTheme', () => {
     assert.equal(theme.css['surface-0'], base.css['surface-0']);
     assert.equal(theme.monaco.colors['editor.background'], '#000000');
     assert.equal(theme.monaco.colors['editor.foreground'], base.monaco.colors['editor.foreground']);
+    assert.deepEqual(theme.branches, base.branches);
+  });
+
+  it('replaces the branch colors that a theme gives', () => {
+    const theme = parseTheme('custom', { scheme: 'dark', branches: ['#ff0000', null, ' #00ff00 ', ''] }, base);
+    assert.equal(theme.branches.length, BRANCH_COLOR_COUNT);
+    assert.deepEqual(theme.branches.slice(0, 4), ['#ff0000', base.branches[1], '#00ff00', base.branches[3]]);
+    assert.deepEqual(theme.branches.slice(4), base.branches.slice(4));
+    // More colors than the graph uses are ignored
+    const many = parseTheme('many', { branches: Array.from({ length: 20 }, () => '#123456') }, base);
+    assert.equal(many.branches.length, BRANCH_COLOR_COUNT);
+  });
+
+  it('fills the branch colors of a theme without base', () => {
+    const theme = parseTheme('bare', { branches: 'red' });
+    assert.equal(theme.branches.length, BRANCH_COLOR_COUNT);
+    assert.ok(theme.branches.every((color) => color === 'gray'));
+  });
+
+  it('names the variables of the branch colors', () => {
+    assert.equal(getBranchVariable(0), '--branch-0');
+    assert.equal(getBranchVariable(BRANCH_COLOR_COUNT - 1), `--branch-${BRANCH_COLOR_COUNT - 1}`);
+    // The graph cycles through the colors
+    assert.equal(getBranchVariable(BRANCH_COLOR_COUNT + 2), '--branch-2');
   });
 });
 
@@ -170,6 +203,7 @@ describe('ThemeManager', () => {
     }
     fs.writeFileSync(Path.join(path, 'Solarized Dark.json'), JSON.stringify({
       css: { 'font-famliy': 'Fira Sans', accent: '#268bd2' },
+      branches: ['#268bd2', '#cb4b16'],
       monaco: { theme: 'vs-dark' }
     }));
   });
@@ -195,6 +229,7 @@ describe('ThemeManager', () => {
     assert.equal(theme.css['surface-1'], dark.css['surface-1']);
     assert.equal(theme.monaco.base, 'vs-dark');
     assert.deepEqual(theme.monaco.colors, dark.monaco.colors);
+    assert.deepEqual(theme.branches, ['#268bd2', '#cb4b16', ...dark.branches.slice(2)]);
   });
 
   it('falls back to the theme of the OS if the theme cannot be read', (t) => {
@@ -219,14 +254,19 @@ describe('ThemeManager', () => {
       name: 'custom',
       scheme: 'dark',
       css: { 'only-custom': 'red', 'accent': 'blue' },
+      branches: Array.from({ length: BRANCH_COLOR_COUNT }, (_, i) => `#0000${i.toString(16).padStart(2, '0')}`),
       monaco: { base: 'vs-dark', colors: {} }
     };
     manager.applyTheme(custom, root as any);
     assert.equal(properties.get('--only-custom'), 'red');
+    assert.equal(properties.get('--branch-0'), '#000000');
+    assert.equal(properties.get('--branch-15'), '#00000f');
     const light = manager.loadTheme('light', false);
     manager.applyTheme(light, root as any);
     assert.equal(properties.has('--only-custom'), false);
     assert.equal(properties.get('--accent'), light.css['accent']);
+    assert.equal(properties.get('--branch-0'), light.branches[0]);
+    assert.equal(properties.get('--branch-15'), light.branches[15]);
     assert.equal(root.style.colorScheme, 'light');
     assert.equal(root.dataset.scheme, 'light');
     assert.equal(manager.theme, light);
@@ -296,7 +336,7 @@ for (const name of ['light', 'dark']) {
         { name: 'surface-1', color: color('surface-1') },
         { name: 'selected', color: composite(css['selected'], color('surface-1')) }
       ];
-      for (const branchColor of BRANCH_COLORS) {
+      for (const branchColor of theme.branches as string[]) {
         for (const background of backgrounds) {
           const ratio = contrast(parseColor(branchColor), background.color);
           assert.ok(ratio >= 3, `${branchColor} on ${background.name}: ${ratio.toFixed(2)}`);

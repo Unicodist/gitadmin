@@ -7,11 +7,24 @@ export const DEFAULT_THEME = SYSTEM_THEME;
 
 export type ColorScheme = 'light' | 'dark';
 
+// Number of branch colors of a theme, the graph cycles through them and each focused branch gets one
+export const BRANCH_COLOR_COUNT = 16;
+
+// Color of the branches that a theme without base leaves out
+const FALLBACK_BRANCH_COLOR = 'gray';
+
+// CSS variable of a branch color, the n-th color is --branch-n
+export function getBranchVariable(i: number) {
+  return `--branch-${i % BRANCH_COLOR_COUNT}`;
+}
+
 export interface Theme {
   name: string;
   scheme: ColorScheme;
   // Values of the CSS variables, without the leading dashes
   css: Record<string, string>;
+  // Colors of the branches in the graph, in the order in which they are given, BRANCH_COLOR_COUNT of them
+  branches: string[];
   // Colors of the Monaco editors
   monaco: {
     base: string;
@@ -69,6 +82,18 @@ function renameLegacyVariables(css: Record<string, string>) {
   return renamed;
 }
 
+// A theme can replace some of the branch colors of its base by giving null for the others
+function getBranchColors(json: any, base?: Theme) {
+  const colors = Array.isArray(json.branches) ? json.branches : [];
+  return Array.from({ length: BRANCH_COLOR_COUNT }, (_, i) => {
+    const color = colors[i];
+    if (typeof color === 'string' && color.trim() !== '') {
+      return color.trim();
+    }
+    return base ? base.branches[i] : FALLBACK_BRANCH_COLOR;
+  });
+}
+
 // Makes a theme from the content of its file, the values that it does not define come from base
 export function parseTheme(name: string, json: any, base?: Theme): Theme {
   const scheme = getScheme(json);
@@ -79,6 +104,7 @@ export function parseTheme(name: string, json: any, base?: Theme): Theme {
       ...(base ? base.css : {}),
       ...renameLegacyVariables(json.css || {})
     },
+    branches: getBranchColors(json, base),
     monaco: {
       base: getEditorBase(json, scheme),
       colors: {
@@ -157,9 +183,13 @@ export class ThemeManager {
     for (const variable of this.appliedVariables) {
       root.style.removeProperty(`--${variable}`);
     }
-    this.appliedVariables = Object.keys(theme.css);
+    const variables: Record<string, string> = { ...theme.css };
+    theme.branches.forEach((color, i) => {
+      variables[getBranchVariable(i).substring(2)] = color;
+    });
+    this.appliedVariables = Object.keys(variables);
     for (const variable of this.appliedVariables) {
-      root.style.setProperty(`--${variable}`, theme.css[variable]);
+      root.style.setProperty(`--${variable}`, variables[variable]);
     }
     // Native controls follow the color scheme
     root.style.colorScheme = theme.scheme;

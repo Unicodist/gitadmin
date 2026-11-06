@@ -1,31 +1,13 @@
 import type { RepoWrapper } from './repo-wrapper';
 import { SHARED } from './branch-focus';
+import { getBranchVariable } from '../../shared/theme-manager';
 import IntervalTree from 'node-interval-tree';
 
-// The colors have the same luminance so that no branch stands out, and a contrast of at least
-// 3:1 with the backgrounds of the commit list in both themes, selected rows included.
+// The colors of the branches are set by the theme (assets/themes). They have the same luminance so that no branch
+// stands out, and a contrast of at least 3:1 with the backgrounds of the commit list, selected rows included.
 // Consecutive colors are far apart in hue so that neighbor branches are easy to tell apart.
-export const BRANCH_COLORS = [
-  '#347ef6',
-  '#e0540b',
-  '#0d9186',
-  '#aa58f7',
-  '#f33455',
-  '#149544',
-  '#c36b05',
-  '#7073f2',
-  '#088dad',
-  '#e0478b',
-  '#59900c',
-  '#9266f7',
-  '#ef3f3f',
-  '#0288ce',
-  '#cc44dd',
-  '#059468'
-];
-
 export function getBranchColor(j: number) {
-  return BRANCH_COLORS[j % BRANCH_COLORS.length];
+  return `var(${getBranchVariable(j)})`;
 }
 
 // Color of the commits that all the focused references share, they are dimmed

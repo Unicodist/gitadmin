@@ -6,7 +6,7 @@ import { Commit } from './git/model';
 // The reference explorer, the branch picker and the focus bar edit the same focus, and it is
 // saved per repository.
 
-// One color per focused reference, as many as BRANCH_COLORS (commit-graph.ts imports this file)
+// One color per focused reference, as many as the branch colors of the themes (BRANCH_COLOR_COUNT)
 export const MAX_FOCUSED_REFERENCES = 16;
 
 // Owner of the commits that all the focused references share
