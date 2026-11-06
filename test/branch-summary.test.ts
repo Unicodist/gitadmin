@@ -432,8 +432,20 @@ describe('branch summary', () => {
     await repo.git('checkout', '--quiet', 'main');
     await repo.commit('B');
     const wrapper = await load();
+    const ran: string[] = [];
+    const git = wrapper.git.bind(wrapper);
+    wrapper.git = (args, options) => {
+      ran.push(args.slice(0, 2).join(' '));
+      return git(args, options);
+    };
     // feature has 1 commit since develop and 2 since main
     assert.equal(await wrapper.detectSource(FEATURE), DEVELOP);
+    // Only the base and the count of each candidate, git finds the fork point of each one
+    assert.deepEqual(ran.sort(), [
+      'merge-base --fork-point', 'merge-base --fork-point', 'merge-base --fork-point',
+      'rev-list --count', 'rev-list --count', 'rev-list --count'
+    ]);
+    wrapper.git = git;
     // main has no main branch other than develop to come from
     assert.equal(await wrapper.detectSource(MAIN), DEVELOP);
     await repo.git('branch', '-D', 'develop');

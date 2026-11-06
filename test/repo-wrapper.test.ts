@@ -755,4 +755,17 @@ describe('ignore', () => {
     assert.equal(wrapper.isIgnored('src/main.ts'), false);
     assert.equal(wrapper.isIgnored('.gitignore'), false);
   });
+
+  it('uses the nested .gitignore files and reads the one that changed again', async () => {
+    await repo.commit('Initial', { '.gitignore': 'build/\n', 'src/.gitignore': '!build/\n' });
+    const { wrapper } = await load();
+    assert.equal(wrapper.isIgnored('build/out.js'), true);
+    assert.equal(wrapper.isIgnored('src/build/out.js'), false);
+    assert.equal(wrapper.isIgnored('src/cache.tmp'), false);
+    repo.write('src/.gitignore', '!build/\n*.tmp\n');
+    wrapper.updateIgnore('src/.gitignore');
+    assert.equal(wrapper.isIgnored('src/cache.tmp'), true);
+    assert.equal(wrapper.isIgnored('build', true), true);
+    assert.equal(wrapper.isIgnored('build', false), false);
+  });
 });

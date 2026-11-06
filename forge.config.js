@@ -1,4 +1,5 @@
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
 // The git distribution of dugite links its commands to the git binary. Packaging
@@ -18,6 +19,20 @@ function restoreGitLinks(buildPath) {
       fs.symlinkSync(fs.readlinkSync(path.join(sourceDir, entry.name)), target);
     }
   }
+}
+
+// rpm 4.20 runs %install in a subdirectory of the BUILD directory, where the files to package are not, so the
+// spec of electron-installer-redhat copies them from the BUILD directory itself, which works with older rpm too
+function getRpmSpecTemplate() {
+  const original = path.join(__dirname, 'node_modules', 'electron-installer-redhat', 'resources', 'spec.ejs');
+  const content = fs.readFileSync(original).toString();
+  const fixed = content.replace(/ usr\/\* %\{buildroot\}\/usr\//, ' %{_builddir}/usr/* %{buildroot}/usr/');
+  if (fixed === content) {
+    throw new Error(`The %install section of ${original} changed, check whether the rpm fix is still needed`);
+  }
+  const template = path.join(os.tmpdir(), 'gitadmin-rpm.spec.ejs');
+  fs.writeFileSync(template, fixed);
+  return template;
 }
 
 module.exports = {
@@ -69,7 +84,13 @@ module.exports = {
     },
     {
       name: '@electron-forge/maker-rpm',
-      config: {}
+      config: {
+        options: {
+          get specTemplate() {
+            return getRpmSpecTemplate();
+          }
+        }
+      }
     },
     {
       // A single file that runs without installation on most Linux distributions

@@ -18,6 +18,7 @@ import { CancellablePromise, makeCancellable } from '../helpers/make-cancellable
 import { loadFocus, saveFocus } from '../helpers/branch-focus';
 import { GraphView, areFiltersEqual, loadGraphView, saveGraphView } from '../helpers/graph-filters';
 import { Changes, UpdateScheduler } from '../helpers/update-scheduler';
+import { WorkdirWatcher, usesNativeWatcher, watchWorkingDirectory } from '../helpers/workdir-watcher';
 
 export interface RepoDashboardProps {
   repo: RepoWrapper;
@@ -56,7 +57,7 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
   rightViewer: React.RefObject<CommitViewer | IndexViewer | BranchSummaryViewer | null>;
   // Watches
   repositoryWatcher: fs.FSWatcher;
-  workingDirectoryWatcher: chokidar.FSWatcher;
+  workingDirectoryWatcher: WorkdirWatcher;
   referencesWatcher: chokidar.FSWatcher;
   // Handles together the changes that the watchers see
   updates: UpdateScheduler;
@@ -323,18 +324,13 @@ export class RepoDashboard extends React.PureComponent<RepoDashboardProps, RepoD
       }
     });
 
-    // Watch working directory
-    const wdPath = this.props.repo.workdir;
-    this.workingDirectoryWatcher = chokidar.watch(wdPath, {
-      ignoreInitial: true,
-      ignored: [/(.*\.git(\/.*|$))/, (path: string) => this.props.repo.isIgnored(Path.relative(wdPath, path))],
-      followSymlinks: false,
-    });
-    this.workingDirectoryWatcher.on('all', (_event: string, path: string) => {
-      if (path.endsWith('.gitignore')) {
-        this.props.repo.updateIgnore();
-      }
-      this.updates.schedule(false, true);
+    // Watch working directory, without the ignored files
+    const repo = this.props.repo;
+    this.workingDirectoryWatcher = watchWorkingDirectory(repo.workdir, {
+      isIgnored: (path, isDirectory) => repo.isIgnored(path, isDirectory),
+      onIgnoreFileChange: (path) => repo.updateIgnore(path),
+      onChange: () => this.updates.schedule(false, true),
+      native: usesNativeWatcher()
     });
 
     // Watch references
