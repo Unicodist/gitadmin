@@ -27,7 +27,7 @@ export enum Field {
   CredentialManager = 'credentialManager'
 }
 
-function getUserDataPath(): string {
+export function getUserDataPath(): string {
   if (process.type === 'browser') {
     return app.getPath('userData');
   }

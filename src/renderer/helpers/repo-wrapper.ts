@@ -1,6 +1,7 @@
 import * as Path from 'path';
 import * as fs from 'fs';
 import { CommitGraph } from './commit-graph';
+import { CommitStore, readShallow } from './commit-store';
 import { IgnoreMatcher, readIgnoreSettings } from './ignore-matcher';
 import { Field, Settings } from '../../shared/settings';
 import { NotificationType } from '../components/notification-item';
@@ -83,7 +84,12 @@ export interface Identity {
 export interface RepoWrapperOptions {
   // Identity used for new commits, null to use the git configuration
   getIdentity?: () => Identity | null;
+  // Folder of the commit caches, the commits are only kept in memory without one
+  commitCacheDirectory?: string | null;
 }
+
+// Time after the last change of the history before the commit cache is written
+export const COMMIT_CACHE_DELAY = 3000;
 
 function getIdentityFromSettings(): Identity | null {
   const name = Settings.get(Field.Name);
@@ -151,6 +157,12 @@ export class RepoWrapper {
   loadedHeadName: string | null; // Head when the history was last loaded again, the current branch filter follows it
   relationsKey: string; // Focused references and their commits when the relations were computed
   getIdentity: () => Identity | null;
+  commitStore: CommitStore; // Every commit read so far, the history is loaded from it
+  storeLoaded: boolean; // True once the commit cache was read
+  loadedWithStore: boolean; // False when the history was loaded without the store, because of replacements
+  roots: Set<string>; // Commits the loaded history was reachable from at the last update
+  saveTimer: ReturnType<typeof setTimeout> | null;
+  commitCacheDirectory: string | null;
 
   constructor(location: RepoLocation, onNotification: (message: string, type: NotificationType) => void, options: RepoWrapperOptions = {}) {
     this.path = location.gitDir;
@@ -185,6 +197,12 @@ export class RepoWrapper {
     this.loadedHeadName = null;
     this.relationsKey = '';
     this.getIdentity = options.getIdentity || getIdentityFromSettings;
+    this.commitCacheDirectory = options.commitCacheDirectory || null;
+    this.commitStore = new CommitStore(this.path, this.commitCacheDirectory);
+    this.storeLoaded = false;
+    this.loadedWithStore = true;
+    this.roots = new Set<string>();
+    this.saveTimer = null;
   }
 
   git(args: string[], options: Parameters<typeof git>[2] = {}) {
@@ -242,7 +260,10 @@ export class RepoWrapper {
   // Loads the new commits, or all of them again when the focus or the filters change, then the head and the graph.
   // False if nothing changed.
   async updateCommits(focus?: string[], filters?: GraphFilters) {
-    let [referencesToUpdate, stashesToUpdate] = await Promise.all([this.updateReferences(), this.updateStashes()]);
+    let [[referencesToUpdate, stashesToUpdate]] = await Promise.all([
+      Promise.all([this.updateReferences(), this.updateStashes()]),
+      this.loadCommitCache()
+    ]);
     await this.readHead();
     // A focused reference may have been removed
     const newFocus = pruneFocus(focus || this.focus, this.references);
@@ -250,7 +271,16 @@ export class RepoWrapper {
     const focused = newFocus.length > 0;
     // The current branch changes with the head
     const headMoved = !focused && newFilters.currentBranchOnly && this.loadedHeadName !== this.headName;
-    const reload = newFocus !== this.focus || !areFiltersEqual(newFilters, this.filters) || headMoved;
+    // The commits that git shows change when a shallow clone gets deeper, or with replacements. The loaded history
+    // is in the store, it is loaded again with the store.
+    const shallow = readShallow(this.path);
+    const useStore = !this.hasReplacements();
+    const storeChanged = useStore !== this.loadedWithStore || (useStore && shallow !== this.commitStore.shallow);
+    if (!useStore || shallow !== this.commitStore.shallow) {
+      this.commitStore.clear(shallow);
+    }
+    const reload = newFocus !== this.focus || !areFiltersEqual(newFilters, this.filters) || headMoved ||
+      (storeChanged && this.commits.length > 0);
     const historyKey = this.getHistoryKey();
     if (!reload && historyKey === this.historyKey) {
       // The references were read again, the head is the new one
@@ -266,18 +296,35 @@ export class RepoWrapper {
       referencesToUpdate.filter((reference) => isReferenceShown(reference, newFilters, this.headName));
     const stashes = focused || !showsStashes(newFilters) ? [] : stashesToUpdate;
     // The commits are only replaced once they are all read, the lists keep showing the previous ones in the meantime
-    const newCommits = await this.readNewCommits(tips, stashes, !focused, reload);
+    const newCommits = await this.readNewCommits(tips, stashes, !focused, reload, useStore);
     if (reload) {
       this.focus = newFocus;
       this.filters = newFilters;
       this.loadedHeadName = this.headName;
       this.clearCommits();
     }
+    this.loadedWithStore = useStore;
     this.addCommits(newCommits);
     this.updateShaToReferences();
     this.getParents(newCommits);
-    this.removeUnreachableCommits();
-    this.sortCommits();
+    // A reload reads exactly the history of the roots, an update only loses commits when a root is not reachable
+    // anymore, a branch that moves forward keeps its previous commit
+    const firstLoad = reload || this.commits.length === 0;
+    const roots = this.getRoots();
+    if (!firstLoad && !this.areRootsReachable(roots, newCommits)) {
+      this.removeUnreachableCommits(roots);
+    }
+    this.roots = new Set(roots);
+    if (firstLoad) {
+      this.commits = newCommits;
+      this.sortCommits();
+    } else {
+      this.insertCommits(newCommits);
+    }
+    if (useStore) {
+      this.compactCommitStore();
+      this.scheduleCommitCacheSave();
+    }
     await this.loadHead();
     // Every commit has a position again before the lists are drawn
     this.updateGraph();
@@ -368,8 +415,60 @@ export class RepoWrapper {
     }
   }
 
-  // Reads the commits that are not loaded yet, or all of them for a reload
-  async readNewCommits(references: Reference[], stashes: Stash[], withHead: boolean, reload: boolean) {
+  // Replacements and grafts change the parents of commits, the store would keep the previous ones
+  hasReplacements() {
+    for (const name of this.references.keys()) {
+      if (name.startsWith('refs/replace/')) {
+        return true;
+      }
+    }
+    return fs.existsSync(Path.join(this.path, 'info', 'grafts'));
+  }
+
+  // Reads the commit cache before the first update
+  async loadCommitCache() {
+    if (!this.storeLoaded) {
+      this.storeLoaded = true;
+      await this.commitStore.load(readShallow(this.path));
+    }
+  }
+
+  // The store keeps the commits that are not loaded anymore, they are dropped when there are many of them
+  compactCommitStore() {
+    if (this.isFocused() || this.isFiltered()) {
+      return;
+    }
+    const commits = this.commits.filter((commit) => !this.stashes.has(commit.sha()));
+    if (this.commitStore.size > 2 * commits.length + 1000) {
+      this.commitStore.compact(commits);
+    }
+  }
+
+  // Writes the commit cache once the history stops changing
+  scheduleCommitCacheSave() {
+    if (this.commitCacheDirectory === null) {
+      return;
+    }
+    if (this.saveTimer !== null) {
+      clearTimeout(this.saveTimer);
+    }
+    this.saveTimer = setTimeout(() => {
+      this.saveTimer = null;
+      this.commitStore.save();
+    }, COMMIT_CACHE_DELAY);
+  }
+
+  // Writes the commit cache now
+  async saveCommitCache() {
+    if (this.saveTimer !== null) {
+      clearTimeout(this.saveTimer);
+      this.saveTimer = null;
+    }
+    await this.commitStore.save();
+  }
+
+  // Reads the commits that are not loaded yet, or all of them for a reload. The ones in the store do not need git.
+  async readNewCommits(references: Reference[], stashes: Stash[], withHead: boolean, reload: boolean, useStore = true) {
     const isLoaded = (sha: string) => !reload && this.shaToCommit.has(sha);
     // Start from the updated references, the parents of the new stashes, and a detached head
     const tips = new Set<string>(references.map((reference) => reference.commitId));
@@ -380,7 +479,19 @@ export class RepoWrapper {
       tips.add(this.headSha);
     }
     const newCommits: Commit[] = [];
-    if (tips.size > 0) {
+    if (tips.size > 0 && useStore) {
+      const store = this.commitStore;
+      const unknown = [...tips].filter((sha) => !store.has(sha));
+      if (unknown.length > 0) {
+        // Everything the tips of the store reach is stored
+        const hidden = [...store.tips].map((sha) => `^${sha}`);
+        const output = await this.git(['log', '-z', `--format=${COMMIT_FORMAT}`, '--ignore-missing', '--stdin'], {
+          stdin: [...unknown, ...hidden].join('\n') + '\n'
+        });
+        store.add(parseCommits(output));
+      }
+      newCommits.push(...store.collect(tips, isLoaded));
+    } else if (tips.size > 0) {
       // Prevent from retrieving commits already loaded: hiding the commits
       // without loaded children hides all their ancestors
       const hidden = reload ? [] : this.commits
@@ -400,9 +511,9 @@ export class RepoWrapper {
     return newCommits;
   }
 
+  // Adds the commits to the maps, insertCommits or sortCommits adds them to the list
   addCommits(commits: Commit[]) {
     for (const commit of commits) {
-      this.commits.push(commit);
       this.shaToCommit.set(commit.sha(), commit);
     }
   }
@@ -424,10 +535,9 @@ export class RepoWrapper {
     }
   }
 
-  removeUnreachableCommits() {
-    // Find unreachable commits by doing a DFS
-    const alreadyAdded = new Set<string>();
-    const frontier: string[] = this.isFocused() ?
+  // Commits that the loaded history is reachable from
+  getRoots() {
+    const roots: string[] = this.isFocused() ?
       this.focus.map((name) => this.references.get(name)!.commitId) : [
         ...Array.from(this.references.values())
           .filter((reference) => isReferenceShown(reference, this.filters, this.headName))
@@ -435,8 +545,32 @@ export class RepoWrapper {
         ...(showsStashes(this.filters) ? this.stashes.keys() : [])
       ];
     if (this.headSha && !this.isFocused()) {
-      frontier.push(this.headSha);
+      roots.push(this.headSha);
     }
+    return roots;
+  }
+
+  // True if every root of the last update is still reachable: it is still a root, or one of the new commits, which
+  // are all reachable, has it as parent
+  areRootsReachable(roots: string[], newCommits: Commit[]) {
+    const current = new Set(roots);
+    for (const commit of newCommits) {
+      for (const parentSha of this.parents.get(commit.sha())!) {
+        current.add(parentSha);
+      }
+    }
+    for (const sha of this.roots) {
+      if (!current.has(sha) && this.shaToCommit.has(sha)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  removeUnreachableCommits(roots = this.getRoots()) {
+    // Find unreachable commits by doing a DFS
+    const alreadyAdded = new Set<string>();
+    const frontier = [...roots];
     for (const sha of frontier) {
       alreadyAdded.add(sha);
     }
@@ -474,7 +608,8 @@ export class RepoWrapper {
     }
   }
 
-  sortCommits() {
+  // Children before their parents, the newest first otherwise
+  sortTopologically(commits: Commit[]) {
     const sortedCommits: Commit[] = [];
     const alreadySeen = new Set<string>();
     // Iterative DFS, recursion overflows the stack on long histories
@@ -499,15 +634,62 @@ export class RepoWrapper {
     };
 
     // Sort the commits by date (from newer to older)
-    this.commits.sort((lhs, rhs) => rhs.date().valueOf() - lhs.date().valueOf());
+    const byDate = commits.map((commit) => ({ commit, time: commit.date().valueOf() }));
+    byDate.sort((lhs, rhs) => rhs.time - lhs.time);
     // Topological sort (from parent to children)
-    for (const commit of this.commits) {
+    for (const { commit } of byDate) {
       if (!alreadySeen.has(commit.sha())) {
         dfs(commit);
       }
     }
-    this.commits = sortedCommits;
-    // Update shaToIndex
+    return sortedCommits;
+  }
+
+  sortCommits() {
+    this.commits = this.sortTopologically(this.commits);
+    this.updateShaToIndex();
+  }
+
+  // Inserts the new commits into the sorted list without sorting it again. No loaded commit has a new one as
+  // parent, the new commits are sorted together then merged by date, each one before its parents.
+  insertCommits(newCommits: Commit[]) {
+    if (newCommits.length > 0) {
+      const sorted = this.sortTopologically(newCommits);
+      const isNew = new Set(newCommits.map((commit) => commit.sha()));
+      // Loaded commits that still wait for some of their new children
+      const waiting = new Map<string, number>();
+      for (const commit of sorted) {
+        for (const parentSha of this.parents.get(commit.sha())!) {
+          if (!isNew.has(parentSha)) {
+            waiting.set(parentSha, (waiting.get(parentSha) || 0) + 1);
+          }
+        }
+      }
+      const merged: Commit[] = [];
+      let i = 0;
+      let j = 0;
+      while (i < this.commits.length || j < sorted.length) {
+        const old = i < this.commits.length ? this.commits[i] : null;
+        if (j < sorted.length && (old === null || (waiting.get(old.sha()) || 0) > 0 ||
+          sorted[j].date().valueOf() >= old.date().valueOf())) {
+          const commit = sorted[j++];
+          merged.push(commit);
+          for (const parentSha of this.parents.get(commit.sha())!) {
+            if (waiting.has(parentSha)) {
+              waiting.set(parentSha, waiting.get(parentSha)! - 1);
+            }
+          }
+        } else {
+          merged.push(old!);
+          ++i;
+        }
+      }
+      this.commits = merged;
+    }
+    this.updateShaToIndex();
+  }
+
+  updateShaToIndex() {
     this.shaToIndex = new Map(this.commits.map((commit, i) => [commit.sha(), i] as [string, number]));
   }
 
@@ -984,8 +1166,7 @@ export class RepoWrapper {
   // uses the reflog of the source, so that a branch taken out of commits the source dropped since then still forks
   // from them. When the branch merged the source in since then, its first parents lead back to where it was taken out.
   async getForkPoint(source: string, branch: string) {
-    const forkPoint = (await this.git(['merge-base', '--fork-point', source, branch], { okExitCodes: [1] })).trim();
-    const base = forkPoint || await this.getMergeBase([source, branch]);
+    const base = await this.getSourceBase(source, branch);
     if (base === null) {
       return { forkPoint: null, base: null };
     }
@@ -996,12 +1177,20 @@ export class RepoWrapper {
     return { forkPoint: firstCommit && firstCommit.parentIds.length > 0 ? firstCommit.parentIds[0] : base, base };
   }
 
+  // Commit that the history of the branch is compared to the source from: where it was taken out of the source
+  // according to the reflog of the source, or else their best common ancestor. Null if they share no history.
+  async getSourceBase(source: string, branch: string) {
+    const forkPoint = (await this.git(['merge-base', '--fork-point', source, branch], { okExitCodes: [1] })).trim();
+    return forkPoint || await this.getMergeBase([source, branch]);
+  }
+
   // Main branch that the branch was most likely taken out of: the one it has the fewest commits since, null if
-  // it shares no history with any of them
+  // it shares no history with any of them. Only the base matters here, not the first commit of the branch that
+  // getForkPoint also reads.
   async detectSource(branch: string) {
     const candidates = getSourceCandidates(this.references.keys(), branch);
     const counts = await mapConcurrently(candidates, async (candidate) => {
-      const { base } = await this.getForkPoint(candidate, branch);
+      const base = await this.getSourceBase(candidate, branch);
       return base === null ? null : await this.countCommits(branch, [base, candidate]);
     });
     let best: string | null = null;

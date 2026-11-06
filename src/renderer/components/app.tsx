@@ -1,6 +1,8 @@
+import * as Path from 'path';
 import * as React from 'react';
 import { RepoDashboard } from './repo-dashboard';
 import { RepoWrapper, RepoLocation, Commit, Reference } from '../helpers/repo-wrapper';
+import { COMMIT_CACHE_FOLDER } from '../helpers/commit-store';
 import { answerCredentialRequest, onCredentialRequest, setThemeSource, showOpenDirectoryDialog } from '../helpers/native';
 import { CancelledError } from '../helpers/git/network';
 import { registerEditorTheme } from '../helpers/monaco-loader';
@@ -12,7 +14,7 @@ import { CloneRepoDialog } from './clone-repo-dialog';
 import { InitRepoDialog } from './init-repo-dialog';
 import { TextPatchViewerOptions } from './text-patch-viewer';
 import { PreferencesDialog } from './preferences-dialog';
-import { Field, Settings } from '../../shared/settings';
+import { Field, Settings, getUserDataPath } from '../../shared/settings';
 import { DEFAULT_THEME, getBackgroundColor, getEditorThemeData, getEditorThemeName, SYSTEM_THEME, ThemeManager }
   from '../../shared/theme-manager';
 import { InputDialog } from './input-dialog';
@@ -169,7 +171,9 @@ export class App extends React.PureComponent<{}, AppState> {
   }
 
   addRepo(location: RepoLocation) {
-    const repoState = new RepoWrapper(location, this.showNotification);
+    const repoState = new RepoWrapper(location, this.showNotification, {
+      commitCacheDirectory: Path.join(getUserDataPath(), COMMIT_CACHE_FOLDER)
+    });
     this.setState({
       repos: [repoState]
     });

@@ -22,10 +22,13 @@ export interface GitOptions {
 }
 
 // Never block on a credential prompt and treat pathspecs literally,
-// so file names containing glob characters are not expanded
-const BASE_ENV = {
+// so file names containing glob characters are not expanded.
+// When its output is a pipe, git log flushes after every commit, which more than doubles the time of reading a long
+// history. The output is only used once git exits, so it can stay buffered.
+export const BASE_ENV = {
   GIT_TERMINAL_PROMPT: '0',
-  GIT_LITERAL_PATHSPECS: '1'
+  GIT_LITERAL_PATHSPECS: '1',
+  GIT_FLUSH: '0'
 };
 
 async function run(args: string[], cwd: string, options: GitOptions, encoding: 'utf8' | 'buffer') {
