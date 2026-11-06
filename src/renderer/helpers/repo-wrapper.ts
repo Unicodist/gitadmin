@@ -1,7 +1,7 @@
 import * as Path from 'path';
 import * as fs from 'fs';
-import ignore, { Ignore } from 'ignore';
 import { CommitGraph } from './commit-graph';
+import { IgnoreMatcher, readIgnoreSettings } from './ignore-matcher';
 import { Field, Settings } from '../../shared/settings';
 import { NotificationType } from '../components/notification-item';
 import { git, gitBuffer } from './git/runner';
@@ -145,7 +145,7 @@ export class RepoWrapper {
   pendingUpdate: Promise<boolean> | null; // Update of the commits that is queued and not started yet
   historyKey: string; // References, stashes and head when the commits were last updated
   busyCommands: number; // Commands running that change many references at once
-  ig: Ignore;
+  ignoreMatcher: IgnoreMatcher;
   headName: string | null;
   headSha: string | null;
   loadedHeadName: string | null; // Head when the history was last loaded again, the current branch filter follows it
@@ -179,7 +179,7 @@ export class RepoWrapper {
     this.pendingUpdate = null;
     this.historyKey = '';
     this.busyCommands = 0;
-    this.ig = ignore();
+    this.ignoreMatcher = new IgnoreMatcher(this.workdir, this.path);
     this.headName = null;
     this.headSha = null;
     this.loadedHeadName = null;
@@ -193,8 +193,8 @@ export class RepoWrapper {
 
   async init() {
     // The index does not depend on the history
-    await Promise.all([this.updateCommits(), this.updateIndex()]);
-    this.updateIgnore();
+    const [, , ignoreSettings] = await Promise.all([this.updateCommits(), this.updateIndex(), readIgnoreSettings(this.workdir)]);
+    this.ignoreMatcher.setSettings(ignoreSettings);
   }
 
   // Runs the update after the ones already queued
@@ -1247,16 +1247,18 @@ export class RepoWrapper {
 
   // Ignore
 
-  updateIgnore() {
-    const path = Path.join(this.workdir, '.gitignore');
-    if (fs.existsSync(path)) {
-      this.ig = ignore().add(fs.readFileSync(path).toString());
+  // Reads the ignore files again, or only the .gitignore that changed when it is given
+  updateIgnore(changedPath?: string) {
+    if (changedPath === undefined) {
+      this.ignoreMatcher.reset();
+    } else {
+      this.ignoreMatcher.invalidate(Path.dirname(changedPath));
     }
   }
 
-  isIgnored(path: string) {
-    // .gitignore is never ignored
-    return path.length > 0 && path !== '.gitignore' && this.ig.ignores(path);
+  // Path relative to the working directory, isDirectory is looked up on the disk when it is not given
+  isIgnored(path: string, isDirectory?: boolean) {
+    return this.ignoreMatcher.isIgnored(path, isDirectory);
   }
 
   // Commit
